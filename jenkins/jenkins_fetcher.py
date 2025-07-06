@@ -19,24 +19,28 @@ def fetch_job_status(job, username, token):
         response = requests.get(url, auth=HTTPBasicAuth(username, token))
         data = response.json()
 
-        display_name = data.get("fullDisplayName")
+        display_name = data.get("fullDisplayName") or f"{job['name']} #{data['number']}"
         result = "RUNNING" if data.get("building") else data.get("result") or "UNKNOWN"
 
+        # Duration in HH:MM:SS
         duration_secs = int(data.get("duration", 0) / 1000)
         duration_str = f"{duration_secs//3600:02}:{(duration_secs % 3600)//60:02}:{duration_secs % 60:02}"
 
+        # Timestamp -> IST conversion (UTC + 5:30)
         timestamp = data.get("timestamp", 0) / 1000
-        triggered = datetime.utcfromtimestamp(timestamp) + timedelta(hours=5, minutes=30)  # Convert to IST
-        triggered_str = triggered.strftime("%I:%M %p")
+        triggered = datetime.utcfromtimestamp(timestamp) + timedelta(hours=5, minutes=30)
+        triggered_time = triggered.strftime("%I:%M %p")
+        triggered_date = triggered.strftime("%Y-%m-%d")
 
         return {
-            "name": job["name"],
+            "name": display_name,
             "number": data["number"],
             "url": f"{job['url']}{data['number']}/",
+            "link_text": f"[{display_name}]({job['url']}{data['number']}/)",
             "result": result,
             "duration": duration_str,
-            "triggered": triggered.strftime("%I:%M %p"),
-            "triggered_date": triggered.strftime("%Y-%m-%d")
+            "triggered": triggered_time,
+            "triggered_date": triggered_date
         }
 
     except Exception as e:
