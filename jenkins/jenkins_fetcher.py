@@ -3,10 +3,21 @@ import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, timedelta
 
+
 def read_jenkins_jobs(config_file):
     config = configparser.ConfigParser()
     config.read(config_file)
-    return [{"name": section, "url": config[section]["url"]} for section in config.sections()]
+    jobs = []
+    for section in config.sections():
+        aliases = config[section].get("alias", "")
+        alias_list = [a.strip().lower() for a in aliases.split(",") if a.strip()]
+        jobs.append({
+            "name": section,
+            "url": config[section]["url"],
+            "aliases": alias_list
+        })
+    return jobs
+
 
 def read_credentials(credentials_file):
     config = configparser.ConfigParser()
