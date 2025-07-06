@@ -1,62 +1,3 @@
-# from webex_bot.models.command import Command
-# from config import WEBEX_BOT_PERSON_ID, WEBEX_BOT_TOKEN
-# from jenkins.jenkins_fetcher import read_jenkins_jobs, read_credentials, fetch_job_status
-# from cards.job_card import build_job_card
-# from webexteamssdk import WebexTeamsAPI
-# import time
-
-# api = WebexTeamsAPI(access_token=WEBEX_BOT_TOKEN)
-# from webexteamssdk import WebexTeamsAPI
-# from config import WEBEX_BOT_TOKEN
-
-# class JenkinsStatusCommand(Command):
-#     def __init__(self):
-#         super().__init__(
-#             command_keyword="jenkins",
-#             help_message="Show Jenkins build status for all or specific job.",
-#             card=None,
-#         )
-#         self.api = WebexTeamsAPI(access_token=WEBEX_BOT_TOKEN)
-
-
-
-#     def execute(self, message, teams_message, activity):
-#         self._handle_status_request(message, teams_message)
-
-#     def card_callback(self, message, teams_message, activity=None):
-#         # This handles "IMS_10_0_MAIN" style messages
-#         self._handle_status_request(message, teams_message)
-    
-#     def _handle_status_request(self, message, teams_message):
-#         from jenkins.jenkins_fetcher import read_jenkins_jobs, read_credentials, fetch_job_status
-#         from cards.job_card import build_job_card
-#         from config import WEBEX_BOT_PERSON_ID
-
-#         if teams_message.personId == WEBEX_BOT_PERSON_ID:
-#             return
-
-#         room_id = teams_message.roomId
-#         jobs = read_jenkins_jobs("jenkins/job_config.ini")
-#         username, token = read_credentials("jenkins/credentials.ini")
-
-#         user_text = message.lower().replace("datadigger", "").replace("jenkins", "").strip()
-
-#         matched_jobs = []
-#         for job in jobs:
-#             name_match = job["name"].lower().replace("/", "_")
-#             alias_match = user_text in job.get("aliases", [])
-#             if user_text == name_match or alias_match:
-#                 matched_jobs.append(job)
-
-#         if not matched_jobs:
-#             self.api.messages.create(roomId=room_id, text=f"❌ No job found for `{message.strip()}`.")
-#             return
-
-#         for job in matched_jobs:
-#             status = fetch_job_status(job, username, token)
-#             card_text = build_job_card(status)
-#             self.api.messages.create(roomId=room_id, markdown=card_text)
-
 from webex_bot.models.command import Command
 from config import WEBEX_BOT_PERSON_ID, WEBEX_BOT_TOKEN
 from jenkins.jenkins_fetcher import read_credentials, fetch_job_status
@@ -106,10 +47,17 @@ class JenkinsStatusCommand(Command):
             for name in job_names:
                 matched_jobs.append({"name": name, "url": config_urls["URLS"].get(name)})
         else:
-            # Match individual job by fuzzy key
-            for key in config_urls["URLS"]:
-                if text in key.lower():
-                    matched_jobs.append({"name": key, "url": config_urls["URLS"][key]})
+            # Match individual job by fuzzy key or alias
+            for section in config_urls.sections():
+                if section == "URLS":
+                    continue
+                job_name = section
+                aliases = config_urls[section].get("alias", "").lower().split(",")
+                all_keywords = [job_name.lower()] + [a.strip() for a in aliases]
+                if text in all_keywords:
+                    url = config_urls["URLS"].get(job_name)
+                    if url:
+                        matched_jobs.append({"name": job_name, "url": url})
 
         if not matched_jobs:
             api.messages.create(roomId=room_id, text=f"❌ No job found for `{message}`.")
