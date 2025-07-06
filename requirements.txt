@@ -1,0 +1,5 @@
+webex-bot
+webexteamssdk
+requests
+pytz
+
