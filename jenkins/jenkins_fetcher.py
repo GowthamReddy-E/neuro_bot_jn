@@ -28,7 +28,22 @@ def fetch_job_status(job, username, token):
     try:
         url = f"{job['url']}lastBuild/api/json"
         response = requests.get(url, auth=HTTPBasicAuth(username, token))
+        
+        # Check HTTP response status
+        if response.status_code != 200:
+            return {
+                "name": job["name"],
+                "error": f"HTTP {response.status_code}: {response.reason}"
+            }
+        
         data = response.json()
+        
+        # Check if required fields are present
+        if "number" not in data:
+            return {
+                "name": job["name"],
+                "error": "No build number found - job may never have been built"
+            }
 
         display_name = data.get("fullDisplayName") or f"{job['name']} #{data['number']}"
         result = "RUNNING" if data.get("building") else data.get("result") or "UNKNOWN"
@@ -54,8 +69,18 @@ def fetch_job_status(job, username, token):
             "triggered_date": triggered_date
         }
 
+    except requests.exceptions.RequestException as e:
+        return {
+            "name": job["name"],
+            "error": f"Network error: {str(e)}"
+        }
+    except ValueError as e:
+        return {
+            "name": job["name"],
+            "error": f"Invalid JSON response: {str(e)}"
+        }
     except Exception as e:
         return {
             "name": job["name"],
-            "error": str(e)
+            "error": f"Unexpected error: {str(e)}"
         }
