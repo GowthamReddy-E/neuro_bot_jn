@@ -1,0 +1,121 @@
+# Example job configuration with multiple Jenkins instances
+
+# =================================================================
+# EXAMPLE 1: Basic Job Configuration (Single Jenkins)
+# =================================================================
+
+[MY_PROJECT_FRONTEND]
+url = https://jenkins.mycompany.com/job/MyProject-Frontend/
+alias = frontend, fe, ui
+
+[MY_PROJECT_BACKEND]
+url = https://jenkins.mycompany.com/job/MyProject-Backend/
+alias = backend, be, api
+
+# =================================================================
+# EXAMPLE 2: Multiple Jenkins Instances
+# =================================================================
+
+# Jobs on primary Jenkins (uses 'default' credentials)
+[MAIN_PROJECT]
+url = https://primary-jenkins.company.com/job/MainProject/
+alias = main, primary
+# instance = default  # Optional - this is the default
+
+# Jobs on team A's Jenkins server
+[TEAM_A_FRONTEND]
+url = https://team-a-jenkins.company.com/job/Frontend/
+alias = team_a_fe, frontend_a
+instance = team_a_jenkins
+
+[TEAM_A_BACKEND]
+url = https://team-a-jenkins.company.com/job/Backend/
+alias = team_a_be, backend_a
+instance = team_a_jenkins
+
+# Jobs on production Jenkins
+[PROD_API]
+url = https://prod-jenkins.company.com/job/API/
+alias = prod_api, production
+instance = production
+
+[PROD_WEB]
+url = https://prod-jenkins.company.com/job/Web/
+alias = prod_web, web_prod
+instance = production
+
+# Jobs on external Jenkins
+[EXTERNAL_SERVICE]
+url = https://external-jenkins.partner.com/job/SharedService/
+alias = external, shared, partner
+instance = external
+
+# =================================================================
+# EXAMPLE 3: Environment-based Configuration
+# =================================================================
+
+[PROJECT_DEV]
+url = https://dev-jenkins.company.com/job/Project/
+alias = dev, development
+instance = development
+
+[PROJECT_STAGING]
+url = https://staging-jenkins.company.com/job/Project/
+alias = staging, stage
+instance = staging
+
+[PROJECT_PROD]
+url = https://prod-jenkins.company.com/job/Project/
+alias = prod, production
+instance = production
+
+# =================================================================
+# CISCO EXAMPLE (Current Configuration)
+# =================================================================
+
+[USM_7_88_MIAN]
+url = https://engci-private-rtp.cisco.com/jenkins/ftd-asa/job/USM/view/All/job/IMS_7_88_MIAN/
+alias = usm7.8, usm7.88_mian, usm_7.8_main
+instance = cisco_rtp
+
+[IMS_10_0_MAIN]
+url = https://engci-private-rtp.cisco.com/jenkins/ftd-asa/job/IMS/job/IMS_BUILD/job/IMS_10_0_MAIN/
+alias = i10, main10
+instance = cisco_rtp
+
+# =================================================================
+# URL MAPPING SECTION (REQUIRED)
+# =================================================================
+# This section maps job names to their URLs for internal lookup
+# The keys must match the section names above exactly
+
+[URLS]
+# Basic jobs
+MY_PROJECT_FRONTEND = https://jenkins.mycompany.com/job/MyProject-Frontend/
+MY_PROJECT_BACKEND = https://jenkins.mycompany.com/job/MyProject-Backend/
+
+# Multi-instance jobs
+MAIN_PROJECT = https://primary-jenkins.company.com/job/MainProject/
+TEAM_A_FRONTEND = https://team-a-jenkins.company.com/job/Frontend/
+TEAM_A_BACKEND = https://team-a-jenkins.company.com/job/Backend/
+PROD_API = https://prod-jenkins.company.com/job/API/
+PROD_WEB = https://prod-jenkins.company.com/job/Web/
+EXTERNAL_SERVICE = https://external-jenkins.partner.com/job/SharedService/
+
+# Environment-based jobs
+PROJECT_DEV = https://dev-jenkins.company.com/job/Project/
+PROJECT_STAGING = https://staging-jenkins.company.com/job/Project/
+PROJECT_PROD = https://prod-jenkins.company.com/job/Project/
+
+# Cisco jobs
+USM_7_88_MIAN = https://engci-private-rtp.cisco.com/jenkins/ftd-asa/job/USM/view/All/job/IMS_7_88_MIAN/
+IMS_10_0_MAIN = https://engci-private-rtp.cisco.com/jenkins/ftd-asa/job/IMS/job/IMS_BUILD/job/IMS_10_0_MAIN/
+
+# =================================================================
+# NOTES:
+# - Each job section name must have a corresponding entry in [URLS]
+# - 'instance' field is optional - defaults to 'default' if not specified
+# - 'alias' field is optional - allows multiple ways to reference the job
+# - Job URLs should include the full path to the Jenkins job
+# - URLs should typically end with a forward slash
+# =================================================================

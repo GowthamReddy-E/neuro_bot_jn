@@ -1,6 +1,6 @@
 from webex_bot.models.command import Command
 from config import WEBEX_BOT_PERSON_ID, WEBEX_BOT_TOKEN
-from jenkins.jenkins_fetcher import read_credentials, fetch_job_status
+from jenkins.jenkins_fetcher import read_credentials, fetch_job_status, get_job_credentials
 from cards.job_card import build_job_card
 from webexteamssdk import WebexTeamsAPI
 import configparser
@@ -36,8 +36,6 @@ class JenkinsStatusCommand(Command):
 
         config_groups = configparser.ConfigParser()
         config_groups.read("jenkins/groups.ini")
-
-        username, token = read_credentials("jenkins/credentials.ini")
 
         matched_jobs = []
 
@@ -86,6 +84,13 @@ class JenkinsStatusCommand(Command):
             return
 
         for job in matched_jobs:
+            # Get credentials for this specific job
+            try:
+                username, token = get_job_credentials(job["name"], "jenkins/job_config.ini", "jenkins/credentials.ini")
+            except Exception as e:
+                # Fallback to default credentials if job-specific credentials fail
+                username, token = read_credentials("jenkins/credentials.ini", "default")
+            
             job_status = fetch_job_status(job, username, token)
 
             # Handle error cases
@@ -224,14 +229,6 @@ class CatchAllCommand(Command):
         else:
             # Send helpful error message for unrecognized commands
             help_text = f"❌ No job found for `{text if text else message}`.\n\n"
-            help_text += "**Available commands:**\n"
-            help_text += "• `@DataDigger jenkins` - Show all jobs\n"
-            help_text += "• `@DataDigger usm` - Show USM jobs\n"
-            help_text += "• `@DataDigger ims` - Show IMS jobs\n"
-            help_text += "• `@DataDigger status` - Show all jobs\n\n"
-            help_text += "**Individual jobs (use aliases):**\n"
-            help_text += "• `usm7.8`, `usm7.88_mian`, `usm_7.8_main`\n"
-            help_text += "• `i10`, `main10` (for IMS 10.0)\n\n"
             help_text += "Please use the correct keywords."
             
             api.messages.create(roomId=room_id, text=help_text)

@@ -1,0 +1,88 @@
+# Example group configuration for organizing jobs
+
+# =================================================================
+# EXAMPLE 1: Basic Groups
+# =================================================================
+
+[FRONTEND]
+jobs = MY_PROJECT_FRONTEND, TEAM_A_FRONTEND
+
+[BACKEND]
+jobs = MY_PROJECT_BACKEND, TEAM_A_BACKEND
+
+[ALL_PROJECTS]
+jobs = MY_PROJECT_FRONTEND, MY_PROJECT_BACKEND, TEAM_A_FRONTEND, TEAM_A_BACKEND
+
+# =================================================================
+# EXAMPLE 2: Team-based Groups
+# =================================================================
+
+[TEAM_A]
+jobs = TEAM_A_FRONTEND, TEAM_A_BACKEND
+
+[MAIN_TEAM]
+jobs = MAIN_PROJECT, MY_PROJECT_FRONTEND, MY_PROJECT_BACKEND
+
+[EXTERNAL_TEAM]
+jobs = EXTERNAL_SERVICE
+
+# =================================================================
+# EXAMPLE 3: Environment-based Groups
+# =================================================================
+
+[DEVELOPMENT]
+jobs = PROJECT_DEV, TEAM_A_FRONTEND, TEAM_A_BACKEND
+
+[STAGING]
+jobs = PROJECT_STAGING
+
+[PRODUCTION]
+jobs = PROJECT_PROD, PROD_API, PROD_WEB
+
+[ALL_ENVIRONMENTS]
+jobs = PROJECT_DEV, PROJECT_STAGING, PROJECT_PROD
+
+# =================================================================
+# EXAMPLE 4: Priority-based Groups
+# =================================================================
+
+[CRITICAL]
+jobs = PROD_API, PROD_WEB, PROJECT_PROD
+
+[IMPORTANT]
+jobs = PROJECT_STAGING, MAIN_PROJECT
+
+[MONITORING]
+jobs = PROD_API, PROD_WEB, PROJECT_PROD, EXTERNAL_SERVICE
+
+# =================================================================
+# CISCO EXAMPLE (Current Configuration)
+# =================================================================
+
+[USM]
+jobs = USM_7_6_MAIN, USM_7_7_MAIN, USM_7_8_MAIN, USM_7_88_MIAN
+
+[IMS]
+jobs = IMS_10_0_MAIN, IMS_7_6_MAIN, IMS_7_7_MAIN, IMS_7_4_1_MAIN, BAZEL_IMS_10_0
+
+[ALL_CISCO]
+jobs = USM_7_6_MAIN, USM_7_7_MAIN, USM_7_8_MAIN, USM_7_88_MIAN, IMS_10_0_MAIN, IMS_7_6_MAIN, IMS_7_7_MAIN, IMS_7_4_1_MAIN, BAZEL_IMS_10_0
+
+# =================================================================
+# USAGE EXAMPLES:
+# =================================================================
+# @DataDigger usm          → Shows all USM jobs
+# @DataDigger ims          → Shows all IMS jobs  
+# @DataDigger critical     → Shows all critical jobs
+# @DataDigger team_a       → Shows all Team A jobs
+# @DataDigger production   → Shows all production jobs
+# @DataDigger all_cisco    → Shows all Cisco jobs
+
+# =================================================================
+# NOTES:
+# - Group names are case-insensitive when used with the bot
+# - Job names in the 'jobs' field must match section names in job_config.ini
+# - Jobs can appear in multiple groups
+# - Use descriptive group names that teams will remember
+# - Separate job names with commas
+# =================================================================
