@@ -19,10 +19,50 @@ def read_jenkins_jobs(config_file):
     return jobs
 
 
-def read_credentials(credentials_file):
+def read_credentials(credentials_file, instance="default"):
+    """
+    Read credentials for a specific Jenkins instance
+    
+    Args:
+        credentials_file: Path to credentials.ini file
+        instance: Instance name (section in credentials.ini)
+    
+    Returns:
+        tuple: (username, token)
+    """
     config = configparser.ConfigParser()
     config.read(credentials_file)
-    return config["default"]["username"], config["default"]["token"]
+    
+    if instance not in config:
+        # Fallback to default if specified instance doesn't exist
+        instance = "default"
+    
+    if instance not in config:
+        raise ValueError(f"No credentials found for instance '{instance}' or 'default'")
+    
+    return config[instance]["username"], config[instance]["token"]
+
+def get_job_credentials(job_name, job_config_file, credentials_file):
+    """
+    Get credentials for a specific job based on its instance configuration
+    
+    Args:
+        job_name: Name of the job
+        job_config_file: Path to job_config.ini file
+        credentials_file: Path to credentials.ini file
+    
+    Returns:
+        tuple: (username, token)
+    """
+    config = configparser.ConfigParser()
+    config.read(job_config_file)
+    
+    # Check if job has a specific instance defined
+    instance = "default"
+    if job_name in config and "instance" in config[job_name]:
+        instance = config[job_name]["instance"]
+    
+    return read_credentials(credentials_file, instance)
 
 def fetch_job_status(job, username, token):
     try:
