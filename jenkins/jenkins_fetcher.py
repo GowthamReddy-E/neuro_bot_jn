@@ -117,14 +117,20 @@ def fetch_job_status(job, username, token):
                 # Some Jenkins jobs expose previousBuild even when lastCompletedBuild is missing.
                 last_completed_number = data.get("previousBuild", {}).get("number")
 
+            if last_completed_number is None:
+                # Fallback for jobs that omit both fields while running.
+                current_number = data.get("number")
+                if isinstance(current_number, int) and current_number > 1:
+                    last_completed_number = current_number - 1
+
             last_completed_url = data.get("lastCompletedBuild", {}).get("url")
             if not last_completed_url:
                 last_completed_url = data.get("previousBuild", {}).get("url")
 
-        if result == "RUNNING" and last_completed_number is not None:
-            if not last_completed_url:
+            if last_completed_number is not None and not last_completed_url:
                 last_completed_url = f"{job['url']}{last_completed_number}/"
 
+        if result == "RUNNING" and last_completed_number is not None:
             try:
                 completed_response = requests.get(
                     f"{last_completed_url}api/json",
