@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_NAME="neuro-bot"
-CONTAINER_NAME="neuro-bot"
+IMAGE_NAME="${IMAGE_NAME:-neuro-bot}"
+CONTAINER_NAME="${CONTAINER_NAME:-neuro-bot}"
+SKIP_BUILD="${SKIP_BUILD:-0}"
 
 # Resolve script directory so this works from any cwd.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -120,8 +121,12 @@ if [[ ! -f "$CONFIG_FILE" || ! -f "$CREDS_FILE" ]]; then
   exit 1
 fi
 
-echo "[1/3] Building Docker image: $IMAGE_NAME"
-docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
+if [[ "$SKIP_BUILD" == "1" ]]; then
+  echo "[1/3] Skipping image build (SKIP_BUILD=1), using image: $IMAGE_NAME"
+else
+  echo "[1/3] Building Docker image: $IMAGE_NAME"
+  docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
+fi
 
 if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   echo "[2/3] Removing existing container: $CONTAINER_NAME"
@@ -131,13 +136,18 @@ else
 fi
 
 echo "[3/3] Starting container: $CONTAINER_NAME"
-docker run -d --name "$CONTAINER_NAME" \
-  --user "$(id -u):$(id -g)" \
-  -v "$CONFIG_FILE:/app/config.py:ro" \
-  -v "$CREDS_FILE:/app/jenkins/credentials.ini:ro" \
-  -v "$JOB_CONFIG_FILE:/app/jenkins/job_config.ini:ro" \
-  -v "$GROUPS_FILE:/app/jenkins/groups.ini:ro" \
-  "$IMAGE_NAME" >/dev/null
+docker_cmd=(
+  docker run -d --name "$CONTAINER_NAME"
+  --user "$(id -u):$(id -g)"
+  -v "$CONFIG_FILE:/app/config.py:ro"
+  -v "$CREDS_FILE:/app/jenkins/credentials.ini:ro"
+)
+
+echo "Using image-bundled job/group config"
+
+docker_cmd+=("$IMAGE_NAME")
+
+"${docker_cmd[@]}" >/dev/null
 
 echo "Container started successfully."
 echo "Logs: docker logs -f $CONTAINER_NAME"

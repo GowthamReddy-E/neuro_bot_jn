@@ -63,11 +63,30 @@ Use local environment files so secrets are never committed.
    ./start.sh
    ```
 
+If image is already built/pulled elsewhere, run it without rebuilding:
+```bash
+./run-image.sh neuro-bot:latest neuro-bot
+```
+
 `start.sh` automatically:
 - loads secrets from `~/.config/neuro-bot/secrets.env` (optional) and then `.env.local`
 - generates local `config.py` if missing
 - generates local `jenkins/credentials.ini` if missing
 - builds and starts the `neuro-bot` container
+- mounts `config.py` and `jenkins/credentials.ini` as read-only volumes
+- uses `job_config.ini` and `groups.ini` from inside the image by default
+
+Runtime config mount options:
+By default, `job_config.ini` and `groups.ini` are used from inside the image.
+
+Examples:
+```bash
+# Build image and run (default behavior)
+./start.sh
+
+# Use a prebuilt image
+./run-image.sh neuro-bot:latest neuro-bot
+```
 
 Environment precedence:
 1. `~/.config/neuro-bot/secrets.env` (optional shared host secrets)

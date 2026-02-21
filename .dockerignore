@@ -13,7 +13,6 @@ venv/
 
 # Local secrets (do not bake into image)
 config.py
-creds.txt
 jenkins/credentials.ini
 
 # Local runtime artifacts
