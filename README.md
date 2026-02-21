@@ -64,16 +64,35 @@ Use local environment files so secrets are never committed.
    ```
 
 `start.sh` automatically:
-- loads secrets from `~/.config/neuro-bot/secrets.env` and/or `.env.local`
+- loads secrets from `~/.config/neuro-bot/secrets.env` (optional) and then `.env.local`
 - generates local `config.py` if missing
 - generates local `jenkins/credentials.ini` if missing
 - builds and starts the `neuro-bot` container
+
+Environment precedence:
+1. `~/.config/neuro-bot/secrets.env` (optional shared host secrets)
+2. `.env.local` (repo-local overrides)
+
+Required variables in `.env.local`:
+- `WEBEX_BOT_TOKEN`
+- `WEBEX_BOT_PERSON_ID`
+- Per Jenkins instance from `jenkins/job_config.ini`, for example:
+   - `JENKINS_FTD_ASA_USERNAME` / `JENKINS_FTD_ASA_TOKEN`
+   - `JENKINS_SSP_USERNAME` / `JENKINS_SSP_TOKEN`
+   - `JENKINS_BUILD_USERNAME` / `JENKINS_BUILD_TOKEN`
+   - `JENKINS_SERVICE_USERNAME` / `JENKINS_SERVICE_TOKEN`
+
+Optional alternative variables:
+- `JENKINS_CREDENTIALS_INI`
+- `JENKINS_CREDENTIALS_INI_BASE64`
 
 ## Configuration
 
 ### Bot Credentials
 
-Edit `config.py` with your Webex bot credentials:
+Recommended: keep credentials in `.env.local` and let `start.sh` generate `config.py`.
+
+Manual fallback (local only): edit `config.py` with Webex bot credentials:
 
 ```python
 # Get these from https://developer.webex.com/my-apps
@@ -83,7 +102,9 @@ WEBEX_BOT_PERSON_ID = "your_bot_person_id_here"
 
 ### Jenkins Credentials
 
-Configure Jenkins authentication in `jenkins/credentials.ini`:
+Recommended: keep Jenkins secrets in `.env.local` and let `start.sh` generate `jenkins/credentials.ini`.
+
+Manual fallback (local only): configure Jenkins authentication in `jenkins/credentials.ini`:
 
 #### Single Jenkins Instance:
 ```ini
@@ -112,6 +133,10 @@ token = token3
 2. Click your username → Configure
 3. API Token → Add new Token
 4. Copy the generated token
+
+Security note:
+- `config.py`, `jenkins/credentials.ini`, and `.env.local` are local secret files and must not be committed.
+- If a token is ever committed, revoke/rotate it immediately.
 
 ### Job Configuration
 

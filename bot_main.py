@@ -55,9 +55,7 @@ class NoCardWebexBot(WebexBot):
         help_text += "• `@bot ims` - Show IMS jobs\n"
         help_text += "• `@bot status` - Show all jobs\n\n"
         help_text += "**Individual jobs (use aliases):**\n"
-        help_text += "• `usm7.8`, `usm7.88_mian`, `usm_7.8_main`\n"
-        help_text += "• `i10`, `main10` (for IMS 10.0)\n"
-        help_text += "• `mr` (for USM 7.3 MR)\n\n"
+        help_text += "• `usm_10_0_main`, `usm_7.8_main`\n"
         help_text += "Please use the correct keywords."
         
         self.api.messages.create(roomId=room_id, text=help_text)

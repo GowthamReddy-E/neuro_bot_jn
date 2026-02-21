@@ -46,6 +46,7 @@ generate_config_py() {
 WEBEX_BOT_TOKEN = "${WEBEX_BOT_TOKEN}"
 WEBEX_BOT_PERSON_ID = "${WEBEX_BOT_PERSON_ID}"
 EOF
+  chmod 600 "$CONFIG_FILE"
   echo "Generated local $CONFIG_FILE from environment variables"
 }
 
@@ -59,12 +60,14 @@ generate_credentials_ini() {
 
   if [[ -n "${JENKINS_CREDENTIALS_INI:-}" ]]; then
     printf '%s\n' "$JENKINS_CREDENTIALS_INI" >"$CREDS_FILE"
+    chmod 600 "$CREDS_FILE"
     echo "Generated local $CREDS_FILE from JENKINS_CREDENTIALS_INI"
     return
   fi
 
   if [[ -n "${JENKINS_CREDENTIALS_INI_BASE64:-}" ]]; then
     printf '%s' "$JENKINS_CREDENTIALS_INI_BASE64" | base64 -d >"$CREDS_FILE"
+    chmod 600 "$CREDS_FILE"
     echo "Generated local $CREDS_FILE from JENKINS_CREDENTIALS_INI_BASE64"
     return
   fi
@@ -101,6 +104,8 @@ token = $token_val
 EOF
   done <<<"$instances"
 
+  chmod 600 "$CREDS_FILE"
+
   echo "Generated local $CREDS_FILE from per-instance environment variables"
 }
 
@@ -127,6 +132,7 @@ fi
 
 echo "[3/3] Starting container: $CONTAINER_NAME"
 docker run -d --name "$CONTAINER_NAME" \
+  --user "$(id -u):$(id -g)" \
   -v "$CONFIG_FILE:/app/config.py:ro" \
   -v "$CREDS_FILE:/app/jenkins/credentials.ini:ro" \
   -v "$JOB_CONFIG_FILE:/app/jenkins/job_config.ini:ro" \
