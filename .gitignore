@@ -4,3 +4,4 @@
 jenkins/credentials.ini
 config.py
 creds.txt
+.env.local

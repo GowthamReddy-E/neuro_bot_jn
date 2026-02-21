@@ -12,15 +12,106 @@ CREDS_FILE="$SCRIPT_DIR/jenkins/credentials.ini"
 JOB_CONFIG_FILE="$SCRIPT_DIR/jenkins/job_config.ini"
 GROUPS_FILE="$SCRIPT_DIR/jenkins/groups.ini"
 
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "Missing $CONFIG_FILE"
-  echo "Create it from config.py.example first."
-  exit 1
-fi
+SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-$HOME/.config/neuro-bot/secrets.env}"
+LOCAL_ENV_FILE="$SCRIPT_DIR/.env.local"
 
-if [[ ! -f "$CREDS_FILE" ]]; then
-  echo "Missing $CREDS_FILE"
-  echo "Create it from jenkins/credentials.ini.example first."
+load_env_file() {
+  local env_file="$1"
+  if [[ -f "$env_file" ]]; then
+    echo "Loading secrets from $env_file"
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+  fi
+}
+
+sanitize_instance_key() {
+  local raw="$1"
+  echo "$raw" | tr '[:lower:]' '[:upper:]' | sed 's/[^A-Z0-9]/_/g'
+}
+
+generate_config_py() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    return
+  fi
+
+  if [[ -z "${WEBEX_BOT_TOKEN:-}" || -z "${WEBEX_BOT_PERSON_ID:-}" ]]; then
+    echo "Missing $CONFIG_FILE and required env vars WEBEX_BOT_TOKEN / WEBEX_BOT_PERSON_ID"
+    exit 1
+  fi
+
+  umask 077
+  cat >"$CONFIG_FILE" <<EOF
+WEBEX_BOT_TOKEN = "${WEBEX_BOT_TOKEN}"
+WEBEX_BOT_PERSON_ID = "${WEBEX_BOT_PERSON_ID}"
+EOF
+  echo "Generated local $CONFIG_FILE from environment variables"
+}
+
+generate_credentials_ini() {
+  if [[ -f "$CREDS_FILE" ]]; then
+    return
+  fi
+
+  mkdir -p "$(dirname "$CREDS_FILE")"
+  umask 077
+
+  if [[ -n "${JENKINS_CREDENTIALS_INI:-}" ]]; then
+    printf '%s\n' "$JENKINS_CREDENTIALS_INI" >"$CREDS_FILE"
+    echo "Generated local $CREDS_FILE from JENKINS_CREDENTIALS_INI"
+    return
+  fi
+
+  if [[ -n "${JENKINS_CREDENTIALS_INI_BASE64:-}" ]]; then
+    printf '%s' "$JENKINS_CREDENTIALS_INI_BASE64" | base64 -d >"$CREDS_FILE"
+    echo "Generated local $CREDS_FILE from JENKINS_CREDENTIALS_INI_BASE64"
+    return
+  fi
+
+  local instances
+  instances=$(awk -F '=' '/^[[:space:]]*instance[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); if ($2 != "") print $2}' "$JOB_CONFIG_FILE" | sort -u)
+
+  if [[ -z "$instances" ]]; then
+    echo "No instances found in $JOB_CONFIG_FILE"
+    exit 1
+  fi
+
+  : >"$CREDS_FILE"
+  while IFS= read -r instance; do
+    [[ -z "$instance" ]] && continue
+    local key user_var token_var user_val token_val
+    key=$(sanitize_instance_key "$instance")
+    user_var="JENKINS_${key}_USERNAME"
+    token_var="JENKINS_${key}_TOKEN"
+    user_val="${!user_var:-}"
+    token_val="${!token_var:-}"
+
+    if [[ -z "$user_val" || -z "$token_val" ]]; then
+      echo "Missing env vars for instance '$instance': $user_var and/or $token_var"
+      echo "Either set those vars, or set JENKINS_CREDENTIALS_INI / JENKINS_CREDENTIALS_INI_BASE64"
+      exit 1
+    fi
+
+    cat >>"$CREDS_FILE" <<EOF
+[$instance]
+username = $user_val
+token = $token_val
+
+EOF
+  done <<<"$instances"
+
+  echo "Generated local $CREDS_FILE from per-instance environment variables"
+}
+
+load_env_file "$SECRETS_ENV_FILE"
+load_env_file "$LOCAL_ENV_FILE"
+
+generate_config_py
+generate_credentials_ini
+
+if [[ ! -f "$CONFIG_FILE" || ! -f "$CREDS_FILE" ]]; then
+  echo "Required runtime files are missing after generation checks."
   exit 1
 fi
 

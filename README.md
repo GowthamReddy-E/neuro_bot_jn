@@ -47,6 +47,28 @@ A Webex Teams bot that provides real-time Jenkins build status information for m
    python bot_main.py
    ```
 
+### Secure Local Secrets Workflow
+
+Use local environment files so secrets are never committed.
+
+1. Create local env file:
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+2. Fill real secret values in `.env.local`.
+
+3. Start container with one command:
+   ```bash
+   ./start.sh
+   ```
+
+`start.sh` automatically:
+- loads secrets from `~/.config/neuro-bot/secrets.env` and/or `.env.local`
+- generates local `config.py` if missing
+- generates local `jenkins/credentials.ini` if missing
+- builds and starts the `neuro-bot` container
+
 ## Configuration
 
 ### Bot Credentials
