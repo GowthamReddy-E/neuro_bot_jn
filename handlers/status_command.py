@@ -9,6 +9,33 @@ import datetime
 
 api = WebexTeamsAPI(access_token=WEBEX_BOT_TOKEN)
 
+
+def _build_scoped_jenkins_message(message, scope_keyword):
+    """Keep scoped command input when present; fall back to group view when empty."""
+    raw = (message or "").strip()
+    scope = scope_keyword.lower()
+    lowered = raw.lower()
+    known_prefixes = ("usm_", "ims_", "asa_", "fxos_", "lina_", "bazel_")
+
+    if not raw or lowered == scope:
+        return f"jenkins {scope_keyword}"
+
+    # Some command parsers strip only the matched keyword and leave a leading
+    # underscore suffix (for example: "ims_10_0_main" -> "_10_0_main").
+    if raw.startswith("_"):
+        return f"jenkins {scope}{raw}"
+
+    # If a scoped command receives a bare suffix like "10_0_main", rebuild
+    # the alias as "<scope>_10_0_main".
+    if " " not in raw and "_" in raw and not lowered.startswith(known_prefixes):
+        return f"jenkins {scope}_{raw.lstrip('_')}"
+
+    if lowered.startswith(f"{scope} "):
+        suffix = raw[len(scope_keyword):].strip()
+        return f"jenkins {suffix}" if suffix else f"jenkins {scope_keyword}"
+
+    return f"jenkins {raw}"
+
 class JenkinsStatusCommand(Command):
     def __init__(self):
         super().__init__(
@@ -67,9 +94,9 @@ class JenkinsStatusCommand(Command):
                 aliases = config_urls[section].get("alias", "").lower().split(",")
                 all_keywords = [job_name.lower()] + [a.strip() for a in aliases if a.strip()]
                 
-                # Check for exact match or substring match
+                # Strict matching: only exact job name or alias matches are valid.
                 for keyword in all_keywords:
-                    if text == keyword or text in keyword or keyword in text:
+                    if text == keyword:
                         url = config_urls["URLS"].get(job_name)
                         if url:
                             matched_jobs.append({
@@ -90,8 +117,7 @@ class JenkinsStatusCommand(Command):
             help_text += "• `@bot fxos` - Show FXOS jobs\n"
             help_text += "• `@bot status` - Show all jobs\n\n"
             help_text += "**Individual jobs (use aliases):**\n"
-            help_text += "• `usm7.8`, `usm7.88_mian`, `usm_7.8_main`\n"
-            help_text += "• `i10`, `main10` (for IMS 10.0)\n\n"
+            help_text += "• `usm_10_0_main`, `usm_7.8_main`\n"
             help_text += "Please use the correct keywords."
             
             api.messages.create(roomId=room_id, text=help_text)
@@ -163,9 +189,9 @@ class USMStatusCommand(Command):
         self.match_substring = True
     
     def execute(self, message, teams_message, activity):
-        # Delegate to the main Jenkins command
+        # Preserve job-specific target like "usm_10_1_main" when provided.
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute("jenkins usm", teams_message, activity)
+        jenkins_cmd.execute(_build_scoped_jenkins_message(message, "usm"), teams_message, activity)
     
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -180,9 +206,9 @@ class IMSStatusCommand(Command):
         self.match_substring = True
     
     def execute(self, message, teams_message, activity):
-        # Delegate to the main Jenkins command
+        # Preserve job-specific target like "ims_10_1_main" when provided.
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute("jenkins ims", teams_message, activity)
+        jenkins_cmd.execute(_build_scoped_jenkins_message(message, "ims"), teams_message, activity)
     
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -197,9 +223,9 @@ class ASAStatusCommand(Command):
         self.match_substring = True
 
     def execute(self, message, teams_message, activity):
-        # Delegate to the main Jenkins command
+        # Preserve job-specific target like "apollo_main" when provided.
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute("jenkins asa", teams_message, activity)
+        jenkins_cmd.execute(_build_scoped_jenkins_message(message, "asa"), teams_message, activity)
 
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -214,9 +240,9 @@ class FXOSStatusCommand(Command):
         self.match_substring = True
 
     def execute(self, message, teams_message, activity):
-        # Delegate to the main Jenkins command
+        # Preserve job-specific target like "fxos_2_19_main" when provided.
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute("jenkins fxos", teams_message, activity)
+        jenkins_cmd.execute(_build_scoped_jenkins_message(message, "fxos"), teams_message, activity)
 
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
