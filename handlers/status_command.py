@@ -44,12 +44,20 @@ class JenkinsStatusCommand(Command):
             for section in config_groups.sections():
                 job_names = [j.strip() for j in config_groups[section]["jobs"].split(",")]
                 for name in job_names:
-                    matched_jobs.append({"name": name, "url": config_urls["URLS"].get(name)})
+                    matched_jobs.append({
+                        "name": name,
+                        "url": config_urls["URLS"].get(name),
+                        "display_name": config_urls[name].get("display_name", name) if name in config_urls else name,
+                    })
         elif text.upper() in config_groups:
             # Match a group
             job_names = [j.strip() for j in config_groups[text.upper()]["jobs"].split(",")]
             for name in job_names:
-                matched_jobs.append({"name": name, "url": config_urls["URLS"].get(name)})
+                matched_jobs.append({
+                    "name": name,
+                    "url": config_urls["URLS"].get(name),
+                    "display_name": config_urls[name].get("display_name", name) if name in config_urls else name,
+                })
         else:
             # Match individual job by fuzzy key or alias
             for section in config_urls.sections():
@@ -64,7 +72,11 @@ class JenkinsStatusCommand(Command):
                     if text == keyword or text in keyword or keyword in text:
                         url = config_urls["URLS"].get(job_name)
                         if url:
-                            matched_jobs.append({"name": job_name, "url": url})
+                            matched_jobs.append({
+                                "name": job_name,
+                                "url": url,
+                                "display_name": config_urls[job_name].get("display_name", job_name),
+                            })
                             break  # Avoid duplicate matches for same job
 
         if not matched_jobs:
@@ -74,6 +86,8 @@ class JenkinsStatusCommand(Command):
             help_text += "• `@DataDigger jenkins` - Show all jobs\n"
             help_text += "• `@DataDigger usm` - Show USM jobs\n"
             help_text += "• `@DataDigger ims` - Show IMS jobs\n"
+            help_text += "• `@DataDigger asa` - Show ASA jobs\n"
+            help_text += "• `@DataDigger fxos` - Show FXOS jobs\n"
             help_text += "• `@DataDigger status` - Show all jobs\n\n"
             help_text += "**Individual jobs (use aliases):**\n"
             help_text += "• `usm7.8`, `usm7.88_mian`, `usm_7.8_main`\n"
@@ -89,7 +103,17 @@ class JenkinsStatusCommand(Command):
                 username, token = get_job_credentials(job["name"], "jenkins/job_config.ini", "jenkins/credentials.ini")
             except Exception as e:
                 # Fallback to default credentials if job-specific credentials fail
-                username, token = read_credentials("jenkins/credentials.ini", "default")
+                try:
+                    username, token = read_credentials("jenkins/credentials.ini", "default")
+                except Exception as fallback_error:
+                    error_job = {
+                        "name": job["name"],
+                        "error": f"Credentials config error: {fallback_error}"
+                    }
+                    card_text = build_job_card(error_job)
+                    api.messages.create(roomId=room_id, markdown=card_text)
+                    time.sleep(1)
+                    continue
             
             job_status = fetch_job_status(job, username, token)
 
@@ -120,7 +144,7 @@ class JenkinsStatusCommand(Command):
                 job_status["date"] = "N/A"
 
             job_status["result"] = job_status.get("result") or "RUNNING"
-            job_status["link_text"] = f"[{job_status['name']} #{job_status['number']}]({job_status['url']})"
+            job_status["link_text"] = f"[{job_status['name']}]({job_status['url']})"
 
             card_text = build_job_card(job_status)
             api.messages.create(roomId=room_id, markdown=card_text)
@@ -160,6 +184,40 @@ class IMSStatusCommand(Command):
         jenkins_cmd = JenkinsStatusCommand()
         jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
     
+    def card_callback(self, message, teams_message, activity=None):
+        self.execute(message, teams_message, activity)
+
+class ASAStatusCommand(Command):
+    def __init__(self):
+        super().__init__(
+            command_keyword="asa",
+            help_message="",
+            card=None,
+        )
+        self.match_substring = True
+
+    def execute(self, message, teams_message, activity):
+        # Delegate to the main Jenkins command
+        jenkins_cmd = JenkinsStatusCommand()
+        jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
+
+    def card_callback(self, message, teams_message, activity=None):
+        self.execute(message, teams_message, activity)
+
+class FXOSStatusCommand(Command):
+    def __init__(self):
+        super().__init__(
+            command_keyword="fxos",
+            help_message="",
+            card=None,
+        )
+        self.match_substring = True
+
+    def execute(self, message, teams_message, activity):
+        # Delegate to the main Jenkins command
+        jenkins_cmd = JenkinsStatusCommand()
+        jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
+
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
 
@@ -211,6 +269,8 @@ class CatchAllCommand(Command):
         jenkins_cmd = JenkinsStatusCommand()
         usm_cmd = USMStatusCommand()
         ims_cmd = IMSStatusCommand()
+        asa_cmd = ASAStatusCommand()
+        fxos_cmd = FXOSStatusCommand()
         status_cmd = StatusCommand()
         
         # Check if it matches any of our specific commands
@@ -222,6 +282,12 @@ class CatchAllCommand(Command):
             return
         elif text.startswith("ims") or "ims" in text:
             ims_cmd.execute(message, teams_message, activity)
+            return
+        elif text.startswith("asa") or "asa" in text:
+            asa_cmd.execute(message, teams_message, activity)
+            return
+        elif text.startswith("fxos") or "fxos" in text:
+            fxos_cmd.execute(message, teams_message, activity)
             return
         elif text.startswith("status") or text == "":
             status_cmd.execute(message, teams_message, activity)
