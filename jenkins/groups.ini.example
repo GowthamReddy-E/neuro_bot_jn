@@ -71,12 +71,12 @@ jobs = USM_7_6_MAIN, USM_7_7_MAIN, USM_7_8_MAIN, USM_7_88_MIAN, IMS_10_0_MAIN, I
 # =================================================================
 # USAGE EXAMPLES:
 # =================================================================
-# @DataDigger usm          → Shows all USM jobs
-# @DataDigger ims          → Shows all IMS jobs  
-# @DataDigger critical     → Shows all critical jobs
-# @DataDigger team_a       → Shows all Team A jobs
-# @DataDigger production   → Shows all production jobs
-# @DataDigger all_cisco    → Shows all Cisco jobs
+# @bot usm          → Shows all USM jobs
+# @bot ims          → Shows all IMS jobs  
+# @bot critical     → Shows all critical jobs
+# @bot team_a       → Shows all Team A jobs
+# @bot production   → Shows all production jobs
+# @bot all_cisco    → Shows all Cisco jobs
 
 # =================================================================
 # NOTES:

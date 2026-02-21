@@ -25,7 +25,7 @@ class JenkinsStatusCommand(Command):
         room_id = teams_message.roomId
         # Clean the input text - remove bot mentions and common prefixes
         text = message.strip().lower()
-        text = text.replace("datadigger", "").replace("jenkins", "").strip()
+        text = text.replace("datadigger", "").replace("bot", "").replace("jenkins", "").strip()
         
         # If text is empty after cleaning, show all jobs
         if not text:
@@ -83,12 +83,12 @@ class JenkinsStatusCommand(Command):
             # Create a helpful error message with available options
             help_text = f"❌ No job found for `{text if text else message}`.\n\n"
             help_text += "**Available commands:**\n"
-            help_text += "• `@DataDigger jenkins` - Show all jobs\n"
-            help_text += "• `@DataDigger usm` - Show USM jobs\n"
-            help_text += "• `@DataDigger ims` - Show IMS jobs\n"
-            help_text += "• `@DataDigger asa` - Show ASA jobs\n"
-            help_text += "• `@DataDigger fxos` - Show FXOS jobs\n"
-            help_text += "• `@DataDigger status` - Show all jobs\n\n"
+            help_text += "• `@bot jenkins` - Show all jobs\n"
+            help_text += "• `@bot usm` - Show USM jobs\n"
+            help_text += "• `@bot ims` - Show IMS jobs\n"
+            help_text += "• `@bot asa` - Show ASA jobs\n"
+            help_text += "• `@bot fxos` - Show FXOS jobs\n"
+            help_text += "• `@bot status` - Show all jobs\n\n"
             help_text += "**Individual jobs (use aliases):**\n"
             help_text += "• `usm7.8`, `usm7.88_mian`, `usm_7.8_main`\n"
             help_text += "• `i10`, `main10` (for IMS 10.0)\n\n"
@@ -165,7 +165,7 @@ class USMStatusCommand(Command):
     def execute(self, message, teams_message, activity):
         # Delegate to the main Jenkins command
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
+        jenkins_cmd.execute("jenkins usm", teams_message, activity)
     
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -182,7 +182,7 @@ class IMSStatusCommand(Command):
     def execute(self, message, teams_message, activity):
         # Delegate to the main Jenkins command
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
+        jenkins_cmd.execute("jenkins ims", teams_message, activity)
     
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -199,7 +199,7 @@ class ASAStatusCommand(Command):
     def execute(self, message, teams_message, activity):
         # Delegate to the main Jenkins command
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
+        jenkins_cmd.execute("jenkins asa", teams_message, activity)
 
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -216,7 +216,7 @@ class FXOSStatusCommand(Command):
     def execute(self, message, teams_message, activity):
         # Delegate to the main Jenkins command
         jenkins_cmd = JenkinsStatusCommand()
-        jenkins_cmd.execute(f"jenkins {message}", teams_message, activity)
+        jenkins_cmd.execute("jenkins fxos", teams_message, activity)
 
     def card_callback(self, message, teams_message, activity=None):
         self.execute(message, teams_message, activity)
@@ -263,7 +263,7 @@ class CatchAllCommand(Command):
 
         room_id = teams_message.roomId
         text = message.strip().lower()
-        text = text.replace("datadigger", "").strip()
+        text = text.replace("datadigger", "").replace("bot", "").strip()
         
         # First try to delegate to specific commands
         jenkins_cmd = JenkinsStatusCommand()

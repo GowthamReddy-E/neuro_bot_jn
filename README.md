@@ -214,18 +214,18 @@ To support multiple Jenkins instances with different credentials:
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `@DataDigger jenkins` | Show all jobs | `@DataDigger jenkins` |
-| `@DataDigger usm` | Show USM group jobs | `@DataDigger usm` |
-| `@DataDigger ims` | Show IMS group jobs | `@DataDigger ims` |
-| `@DataDigger status` | Show all jobs | `@DataDigger status` |
-| `@DataDigger [alias]` | Show specific job | `@DataDigger usm7.8` |
+| `@bot jenkins` | Show all jobs | `@bot jenkins` |
+| `@bot usm` | Show USM group jobs | `@bot usm` |
+| `@bot ims` | Show IMS group jobs | `@bot ims` |
+| `@bot status` | Show all jobs | `@bot status` |
+| `@bot [alias]` | Show specific job | `@bot usm7.8` |
 
 ### Supported Aliases
 
 You can use any alias defined in the job configuration:
-- `@DataDigger usm7.8` → USM_7_88_MAIN
-- `@DataDigger i10` → IMS_10_0_MAIN  
-- `@DataDigger main10` → IMS_10_0_MAIN
+- `@bot usm7.8` → USM_7_88_MAIN
+- `@bot i10` → IMS_10_0_MAIN  
+- `@bot main10` → IMS_10_0_MAIN
 
 ## Examples
 
@@ -314,10 +314,10 @@ TRD: 2025-09-21 TRT: 02:30 PM Duration: 00:45:23 Status: SUCCESS
 ❌ No job found for `random`.
 
 **Available commands:**
-• `@DataDigger jenkins` - Show all jobs
-• `@DataDigger usm` - Show USM jobs
-• `@DataDigger ims` - Show IMS jobs
-• `@DataDigger status` - Show all jobs
+• `@bot jenkins` - Show all jobs
+• `@bot usm` - Show USM jobs
+• `@bot ims` - Show IMS jobs
+• `@bot status` - Show all jobs
 
 **Individual jobs (use aliases):**
 • `usm7.8`, `usm7.88_mian`, `usm_7.8_main`

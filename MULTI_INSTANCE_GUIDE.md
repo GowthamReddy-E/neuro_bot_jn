@@ -85,16 +85,16 @@ neuro_bot/
 
 ### Single Jenkins (Existing)
 ```
-@DataDigger jenkins     # Works as before
-@DataDigger usm         # Works as before
-@DataDigger usm7.8      # Works as before
+@bot jenkins     # Works as before
+@bot usm         # Works as before
+@bot usm7.8      # Works as before
 ```
 
 ### Multiple Jenkins (New)
 ```
-@DataDigger team_a      # Shows Team A jobs (different Jenkins)
-@DataDigger prod        # Shows production jobs (different Jenkins)
-@DataDigger external    # Shows external partner jobs (different Jenkins)
+@bot team_a      # Shows Team A jobs (different Jenkins)
+@bot prod        # Shows production jobs (different Jenkins)
+@bot external    # Shows external partner jobs (different Jenkins)
 ```
 
 ## Migration Guide

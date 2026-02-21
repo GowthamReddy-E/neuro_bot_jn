@@ -1,0 +1,20 @@
+# Python cache and virtual env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+
+# Git and editor
+.git/
+.gitignore
+.vscode/
+
+# Local secrets (do not bake into image)
+config.py
+creds.txt
+jenkins/credentials.ini
+
+# Local runtime artifacts
+*.log
