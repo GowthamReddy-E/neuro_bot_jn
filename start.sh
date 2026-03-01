@@ -8,7 +8,7 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 # Resolve script directory so this works from any cwd.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-JOB_CONFIG_FILE="$SCRIPT_DIR/jenkins/job_config.ini"
+JOB_CONFIG_FILE="$SCRIPT_DIR/app/services/jenkins/config/job_config.ini"
 
 SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-$HOME/.config/neuro-bot/secrets.env}"
 

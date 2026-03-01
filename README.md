@@ -25,6 +25,50 @@ A Webex Teams bot that provides real-time Jenkins build status information for m
 - ✅ IST timezone conversion
 - ✅ Direct text responses (no unwanted cards)
 
+## Project Structure
+
+Current structure is organized to support future integrations (for example, Splunk) with reusable modules:
+
+```text
+neuro_bot/
+├── bot_main.py
+├── app/
+│   ├── main.py
+│   ├── core/
+│   │   ├── settings.py
+│   │   ├── paths.py
+│   │   ├── messages.py
+│   │   └── command_utils.py
+│   ├── clients/
+│   │   ├── jenkins_api.py
+│   │   └── splunk_api.py
+│   ├── handlers/
+│   │   └── status_command.py
+│   ├── services/
+│   │   ├── jenkins/
+│   │   │   ├── config/
+│   │   │       ├── job_config.ini
+│   │   │       └── groups.ini
+│   │   │   ├── catalog_service.py
+│   │   │   └── credentials_service.py
+│   │   └── splunk/
+│   │       └── service.py
+│   ├── cards/
+│   │   └── job_card.py
+│   └── integrations/
+│       └── splunk/
+│           └── client.py
+└── start.sh
+```
+
+Design notes:
+- `app/` is the single home for all Python application code.
+- `app/core/` keeps shared settings, constants, and utility helpers.
+- `app/clients/` handles external API calls.
+- `app/services/` contains domain business logic.
+- `app/handlers/` stays thin and focuses on command orchestration.
+- `app/services/jenkins/config/` stores Jenkins job/group INI config files.
+
 ## Installation
 
 1. **Clone the repository:**
@@ -102,7 +146,7 @@ Environment precedence:
 Required variables in `~/.config/neuro-bot/secrets.env`:
 - `WEBEX_BOT_TOKEN`
 - `WEBEX_BOT_PERSON_ID`
-- Per Jenkins instance from `jenkins/job_config.ini`, for example:
+- Per Jenkins instance from `app/services/jenkins/config/job_config.ini`, for example:
    - `JENKINS_FTD_ASA_USERNAME` / `JENKINS_FTD_ASA_TOKEN`
    - `JENKINS_SSP_USERNAME` / `JENKINS_SSP_TOKEN`
    - `JENKINS_BUILD_USERNAME` / `JENKINS_BUILD_TOKEN`
@@ -129,7 +173,7 @@ WEBEX_BOT_PERSON_ID = "your_bot_person_id_here"
 
 Recommended: keep Jenkins secrets in `~/.config/neuro-bot/secrets.env` using `JENKINS_<INSTANCE>_USERNAME` / `JENKINS_<INSTANCE>_TOKEN`.
 
-Manual fallback (local only): configure Jenkins authentication in `jenkins/credentials.ini` only for non-container local runs:
+Manual fallback (local only): configure Jenkins authentication in `app/services/jenkins/config/credentials.ini` only for non-container local runs:
 
 #### Single Jenkins Instance:
 ```ini
@@ -165,7 +209,7 @@ Security note:
 
 ### Job Configuration
 
-Configure jobs in `jenkins/job_config.ini`:
+Configure jobs in `app/services/jenkins/config/job_config.ini`:
 
 #### Basic Job Configuration:
 ```ini
@@ -225,7 +269,7 @@ token = external_token_456
 
 ### Group Configuration
 
-Organize jobs into logical groups in `jenkins/groups.ini`:
+Organize jobs into logical groups in `app/services/jenkins/config/groups.ini`:
 
 ```ini
 [USM]
@@ -448,7 +492,7 @@ print(f"Default credentials: {username}")
 # Test job config
 import configparser
 config = configparser.ConfigParser()
-config.read("jenkins/job_config.ini")
+config.read("app/services/jenkins/config/job_config.ini")
 print("Jobs:", config.sections())
 ```
 

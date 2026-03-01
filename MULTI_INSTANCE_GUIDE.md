@@ -141,12 +141,12 @@ All functionality has been tested:
 
 2. **Configure credentials:**
    ```bash
-   nano jenkins/credentials.ini
+   nano app/services/jenkins/config/credentials.ini
    ```
 
 3. **Configure jobs:**
    ```bash
-   nano jenkins/job_config.ini
+   nano app/services/jenkins/config/job_config.ini
    ```
 
 4. **Start bot:**

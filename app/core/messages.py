@@ -1,0 +1,14 @@
+def build_unknown_job_help_text(query_text):
+    rendered = query_text if query_text else "(empty)"
+    help_text = f"❌ No job found for `{rendered}`.\n\n"
+    help_text += "**Available commands:**\n"
+    help_text += "• `@bot jenkins` - Show all jobs\n"
+    help_text += "• `@bot usm` - Show USM jobs\n"
+    help_text += "• `@bot ims` - Show IMS jobs\n"
+    help_text += "• `@bot asa` - Show ASA jobs\n"
+    help_text += "• `@bot fxos` - Show FXOS jobs\n"
+    help_text += "• `@bot status` - Show all jobs\n\n"
+    help_text += "**Individual jobs (use aliases):**\n"
+    help_text += "• `usm_10_0_main`, `usm_7.8_main`\n"
+    help_text += "Please use the correct keywords."
+    return help_text
