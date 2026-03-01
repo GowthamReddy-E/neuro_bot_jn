@@ -1,11 +1,13 @@
 from webex_bot.models.command import Command
-from config import WEBEX_BOT_PERSON_ID, WEBEX_BOT_TOKEN
 from jenkins.jenkins_fetcher import read_credentials, fetch_job_status, get_job_credentials
 from cards.job_card import build_job_card
 from webexteamssdk import WebexTeamsAPI
+from settings import get_webex_settings
 import configparser
 import time
 import datetime
+
+WEBEX_BOT_TOKEN, WEBEX_BOT_PERSON_ID = get_webex_settings()
 
 api = WebexTeamsAPI(access_token=WEBEX_BOT_TOKEN)
 

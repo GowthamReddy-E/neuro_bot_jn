@@ -1,4 +1,5 @@
 import configparser
+import os
 import requests
 from requests.auth import HTTPBasicAuth
 from datetime import datetime, timedelta
@@ -19,17 +20,55 @@ def read_jenkins_jobs(config_file):
     return jobs
 
 
-def read_credentials(credentials_file, instance="default"):
+def _instance_env_vars(instance):
+    key = (instance or "default").upper().replace("-", "_").replace(".", "_")
+    key = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in key)
+    return f"JENKINS_{key}_USERNAME", f"JENKINS_{key}_TOKEN"
+
+
+def _read_credentials_from_env(instance="default"):
+    """Read instance credentials from environment variables."""
+    user_var, token_var = _instance_env_vars(instance)
+    username = os.getenv(user_var)
+    token = os.getenv(token_var)
+    if username and token:
+        return username, token
+
+    # Fallback to default environment credentials if instance-specific values are absent.
+    if instance != "default":
+        user_var, token_var = _instance_env_vars("default")
+        username = os.getenv(user_var)
+        token = os.getenv(token_var)
+        if username and token:
+            return username, token
+
+    raise ValueError(
+        f"Missing Jenkins environment credentials for instance '{instance}'."
+    )
+
+
+def read_credentials(credentials_file=None, instance="default"):
     """
     Read credentials for a specific Jenkins instance
     
     Args:
-        credentials_file: Path to credentials.ini file
+        credentials_file: Optional path to credentials.ini file
         instance: Instance name (section in credentials.ini)
     
     Returns:
         tuple: (username, token)
     """
+    # Preferred source: environment variables.
+    try:
+        return _read_credentials_from_env(instance)
+    except ValueError:
+        pass
+
+    if not credentials_file:
+        raise ValueError(
+            f"No credentials file provided and env credentials missing for instance '{instance}'"
+        )
+
     config = configparser.ConfigParser()
     config.read(credentials_file)
 
@@ -47,14 +86,14 @@ def read_credentials(credentials_file, instance="default"):
 
     raise ValueError(f"No credentials found in '{credentials_file}'")
 
-def get_job_credentials(job_name, job_config_file, credentials_file):
+def get_job_credentials(job_name, job_config_file, credentials_file=None):
     """
     Get credentials for a specific job based on its instance configuration
     
     Args:
         job_name: Name of the job
         job_config_file: Path to job_config.ini file
-        credentials_file: Path to credentials.ini file
+        credentials_file: Optional path to credentials.ini file
     
     Returns:
         tuple: (username, token)
@@ -107,7 +146,10 @@ def fetch_job_status(job, username, token):
                 if maybe_number.isdigit():
                     base_display_name = name_part
 
-        display_name = f"{base_display_name} #{data['number']}"
+        # Prefer Jenkins displayName (display build number) over raw numeric build number.
+        # Example: displayName can be custom while number is always integer.
+        build_display = (data.get("displayName") or f"#{data['number']}").strip()
+        display_name = f"{base_display_name} {build_display}"
         result = "RUNNING" if data.get("building") else data.get("result") or "UNKNOWN"
         last_completed_number = data.get("lastCompletedBuild", {}).get("number")
         last_completed_status = None
