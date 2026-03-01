@@ -1,6 +1,9 @@
 from webex_bot.webex_bot import WebexBot
 from handlers.status_command import JenkinsStatusCommand, USMStatusCommand, IMSStatusCommand, ASAStatusCommand, FXOSStatusCommand, StatusCommand
-from config import WEBEX_BOT_TOKEN
+from settings import get_webex_settings
+
+
+WEBEX_BOT_TOKEN, _ = get_webex_settings()
 
 # Override the WebexBot to intercept unmatched messages
 class NoCardWebexBot(WebexBot):

@@ -47,16 +47,18 @@ A Webex Teams bot that provides real-time Jenkins build status information for m
    python bot_main.py
    ```
 
-### Secure Local Secrets Workflow
+### Secure Secrets Workflow
 
-Use local environment files so secrets are never committed.
+Use one host-only secrets file so credentials are never committed and never generated inside the repo.
 
-1. Create local env file:
+1. Create secrets file:
    ```bash
-   cp .env.local.example .env.local
+   mkdir -p ~/.config/neuro-bot
+   cp .env.local.example ~/.config/neuro-bot/secrets.env
+   chmod 600 ~/.config/neuro-bot/secrets.env
    ```
 
-2. Fill real secret values in `.env.local`.
+2. Fill real secret values in `~/.config/neuro-bot/secrets.env`.
 
 3. Start container with one command:
    ```bash
@@ -69,12 +71,18 @@ If image is already built/pulled elsewhere, run it without rebuilding:
 ```
 
 `start.sh` automatically:
-- loads secrets from `~/.config/neuro-bot/secrets.env` (optional) and then `.env.local`
-- generates local `config.py` if missing
-- generates local `jenkins/credentials.ini` if missing
+- requires and loads secrets from `~/.config/neuro-bot/secrets.env`
 - builds and starts the `neuro-bot` container
-- mounts `config.py` and `jenkins/credentials.ini` as read-only volumes
+- injects secrets into container via `--env-file`
 - uses `job_config.ini` and `groups.ini` from inside the image by default
+
+Equivalent Docker run command:
+```bash
+docker run -d --name neuro-bot \
+   --user "$(id -u):$(id -g)" \
+   --env-file "$HOME/.config/neuro-bot/secrets.env" \
+   neuro-bot
+```
 
 Runtime config mount options:
 By default, `job_config.ini` and `groups.ini` are used from inside the image.
@@ -89,10 +97,9 @@ Examples:
 ```
 
 Environment precedence:
-1. `~/.config/neuro-bot/secrets.env` (optional shared host secrets)
-2. `.env.local` (repo-local overrides)
+1. `~/.config/neuro-bot/secrets.env` (required)
 
-Required variables in `.env.local`:
+Required variables in `~/.config/neuro-bot/secrets.env`:
 - `WEBEX_BOT_TOKEN`
 - `WEBEX_BOT_PERSON_ID`
 - Per Jenkins instance from `jenkins/job_config.ini`, for example:
@@ -101,17 +108,16 @@ Required variables in `.env.local`:
    - `JENKINS_BUILD_USERNAME` / `JENKINS_BUILD_TOKEN`
    - `JENKINS_SERVICE_USERNAME` / `JENKINS_SERVICE_TOKEN`
 
-Optional alternative variables:
-- `JENKINS_CREDENTIALS_INI`
-- `JENKINS_CREDENTIALS_INI_BASE64`
+Optional launch override:
+- `SECRETS_ENV_FILE=/custom/path/secrets.env ./start.sh`
 
 ## Configuration
 
 ### Bot Credentials
 
-Recommended: keep credentials in `.env.local` and let `start.sh` generate `config.py`.
+Recommended: keep credentials in `~/.config/neuro-bot/secrets.env` and inject them via `start.sh`.
 
-Manual fallback (local only): edit `config.py` with Webex bot credentials:
+Manual fallback (local only): create `config.py` only if you run the bot directly without env vars:
 
 ```python
 # Get these from https://developer.webex.com/my-apps
@@ -121,9 +127,9 @@ WEBEX_BOT_PERSON_ID = "your_bot_person_id_here"
 
 ### Jenkins Credentials
 
-Recommended: keep Jenkins secrets in `.env.local` and let `start.sh` generate `jenkins/credentials.ini`.
+Recommended: keep Jenkins secrets in `~/.config/neuro-bot/secrets.env` using `JENKINS_<INSTANCE>_USERNAME` / `JENKINS_<INSTANCE>_TOKEN`.
 
-Manual fallback (local only): configure Jenkins authentication in `jenkins/credentials.ini`:
+Manual fallback (local only): configure Jenkins authentication in `jenkins/credentials.ini` only for non-container local runs:
 
 #### Single Jenkins Instance:
 ```ini
@@ -154,7 +160,7 @@ token = token3
 4. Copy the generated token
 
 Security note:
-- `config.py`, `jenkins/credentials.ini`, and `.env.local` are local secret files and must not be committed.
+- `~/.config/neuro-bot/secrets.env` is a local secret file and must not be committed.
 - If a token is ever committed, revoke/rotate it immediately.
 
 ### Job Configuration
@@ -239,19 +245,16 @@ jobs = USM_7_88_MAIN, IMS_10_0_MAIN, EXTERNAL_PROJECT
 
 To support multiple Jenkins instances with different credentials:
 
-1. **Update credentials.ini:**
-   ```ini
-   [default]
-   username = primary_user
-   token = primary_token
+1. **Set credentials in `~/.config/neuro-bot/secrets.env`:**
+   ```bash
+   JENKINS_DEFAULT_USERNAME=primary_user
+   JENKINS_DEFAULT_TOKEN=primary_token
 
-   [secondary]
-   username = secondary_user  
-   token = secondary_token
+   JENKINS_SECONDARY_USERNAME=secondary_user
+   JENKINS_SECONDARY_TOKEN=secondary_token
 
-   [prod]
-   username = prod_user
-   token = prod_token
+   JENKINS_PROD_USERNAME=prod_user
+   JENKINS_PROD_TOKEN=prod_token
    ```
 
 2. **Update job_config.ini with instance mapping:**
@@ -272,7 +275,7 @@ To support multiple Jenkins instances with different credentials:
    instance = prod
    ```
 
-3. **The bot will automatically use the correct credentials** based on the `instance` field.
+3. **The bot will automatically use the correct credentials** from environment variables based on the `instance` field.
 
 ## Usage
 
@@ -297,10 +300,11 @@ You can use any alias defined in the job configuration:
 
 ### Example 1: Basic Setup (Single Jenkins)
 ```ini
-# credentials.ini
-[default]
-username = john.doe
-token = abc123def456
+# ~/.config/neuro-bot/secrets.env
+WEBEX_BOT_TOKEN=your_bot_token
+WEBEX_BOT_PERSON_ID=your_bot_person_id
+JENKINS_DEFAULT_USERNAME=john.doe
+JENKINS_DEFAULT_TOKEN=abc123def456
 
 # job_config.ini
 [MY_PROJECT]
@@ -317,18 +321,15 @@ jobs = MY_PROJECT
 
 ### Example 2: Multiple Teams Setup
 ```ini
-# credentials.ini
-[default]
-username = shared_user
-token = shared_token
-
-[team_a]
-username = team_a_user
-token = team_a_token
-
-[team_b]  
-username = team_b_user
-token = team_b_token
+# ~/.config/neuro-bot/secrets.env
+WEBEX_BOT_TOKEN=your_bot_token
+WEBEX_BOT_PERSON_ID=your_bot_person_id
+JENKINS_DEFAULT_USERNAME=shared_user
+JENKINS_DEFAULT_TOKEN=shared_token
+JENKINS_TEAM_A_USERNAME=team_a_user
+JENKINS_TEAM_A_TOKEN=team_a_token
+JENKINS_TEAM_B_USERNAME=team_b_user
+JENKINS_TEAM_B_TOKEN=team_b_token
 
 # job_config.ini
 [TEAM_A_FRONTEND]
@@ -402,9 +403,9 @@ Please use the correct keywords.
    - Check if aliases are spelled correctly
 
 2. **"HTTP 401: Unauthorized" error:**
-   - Verify Jenkins username and token in `credentials.ini`
+   - Verify Jenkins username and token in `~/.config/neuro-bot/secrets.env`
    - Check if the token has necessary permissions
-   - Ensure the `instance` field matches a credentials section
+   - Ensure the `instance` field matches env vars like `JENKINS_<INSTANCE>_USERNAME/TOKEN`
 
 3. **"HTTP 404: Not Found" error:**
    - Verify the Jenkins URL is correct
@@ -416,7 +417,7 @@ Please use the correct keywords.
    - Check Jenkins job manually to verify it has build history
 
 5. **Bot not responding:**
-   - Check bot token and person ID in `config.py`
+   - Check bot token and person ID in `~/.config/neuro-bot/secrets.env`
    - Verify the bot is running without errors
    - Check Webex Teams bot permissions
 
@@ -441,7 +442,7 @@ Test individual components:
 ```python
 # Test credentials
 from jenkins.jenkins_fetcher import read_credentials
-username, token = read_credentials("jenkins/credentials.ini")
+username, token = read_credentials(None, "default")
 print(f"Default credentials: {username}")
 
 # Test job config
