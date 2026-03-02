@@ -1,0 +1,21 @@
+[Unit]
+Description=JBot Container Service
+Requires=docker.service
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=__RUN_USER__
+Group=__RUN_GROUP__
+WorkingDirectory=__REPO_DIR__
+Environment="IMAGE_NAME=neuro-bot"
+Environment="CONTAINER_NAME=jbot"
+Environment="SECRETS_ENV_FILE=__RUN_HOME__/.config/neuro-bot/secrets.env"
+ExecStart=__REPO_DIR__/start.sh
+ExecStop=/usr/bin/docker rm -f jbot
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -64,6 +64,7 @@ fi
 echo "[3/3] Starting container: $CONTAINER_NAME"
 docker_cmd=(
   docker run -d --name "$CONTAINER_NAME"
+  --restart unless-stopped
   --user "$(id -u):$(id -g)"
   --env-file "$SECRETS_ENV_FILE"
 )

@@ -109,20 +109,17 @@ Use one host-only secrets file so credentials are never committed and never gene
    ./start.sh
    ```
 
-If image is already built/pulled elsewhere, run it without rebuilding:
-```bash
-./run-image.sh neuro-bot:latest neuro-bot
-```
-
 `start.sh` automatically:
 - requires and loads secrets from `~/.config/neuro-bot/secrets.env`
 - builds and starts the `neuro-bot` container
 - injects secrets into container via `--env-file`
 - uses `job_config.ini` and `groups.ini` from inside the image by default
+- sets container restart policy to `unless-stopped`
 
 Equivalent Docker run command:
 ```bash
 docker run -d --name neuro-bot \
+   --restart unless-stopped \
    --user "$(id -u):$(id -g)" \
    --env-file "$HOME/.config/neuro-bot/secrets.env" \
    neuro-bot
@@ -135,9 +132,32 @@ Examples:
 ```bash
 # Build image and run (default behavior)
 ./start.sh
+```
 
-# Use a prebuilt image
-./run-image.sh neuro-bot:latest neuro-bot
+### 24/7 Auto Start with systemd (`jbot` service)
+
+Install and start the systemd service:
+
+```bash
+sudo ./scripts/systemd/install-systemd-service.sh
+```
+
+This installs and enables `jbot.service` so it starts on boot and keeps the bot container running continuously.
+
+Common service commands:
+
+```bash
+systemctl status jbot.service
+journalctl -u jbot.service -f
+sudo systemctl restart jbot.service
+sudo systemctl stop jbot.service
+sudo systemctl disable jbot.service
+```
+
+Optional custom service name:
+
+```bash
+sudo ./scripts/systemd/install-systemd-service.sh <custom-name>
 ```
 
 Environment precedence:
