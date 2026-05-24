@@ -7,6 +7,7 @@ from app.handlers.status_command import (
     FXOSStatusCommand,
     StatusCommand,
 )
+from app.handlers.pointer_command import PointerCommand
 from app.core.settings import get_webex_settings
 from app.core.messages import build_unknown_job_help_text
 
@@ -67,4 +68,5 @@ def run():
     bot.add_command(ASAStatusCommand())
     bot.add_command(FXOSStatusCommand())
     bot.add_command(StatusCommand())
+    bot.add_command(PointerCommand())
     bot.run()

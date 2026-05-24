@@ -1,7 +1,13 @@
+"""Perforce-based pointer service.
+
+Reads pointer files from Perforce depot instead of GitHub.
+Shares the same interface as the GitHub pointer service.
+"""
+
 import configparser
 import re
 
-from app.clients.github_api import GitHubAPI
+from app.clients.p4_client import p4_print, p4_filelog, build_depot_path
 from app.clients.jenkins_api import (
     find_build_by_number,
     fetch_component_report,
@@ -61,22 +67,21 @@ def _build_display_values(all_values, display_spec):
     return display
 
 
-def fetch_pointer_values(config, section, github_client=None):
-    """Fetch pointer values for a single config section (branch) from GitHub.
+def fetch_pointer_values(config, section):
+    """Fetch pointer values for a single config section from Perforce.
 
     Returns a dict:
         {
-            "section": "IMS_10_5",
-            "repo": "cisco-sbg-emu/netsec-ims",
-            "branch": "IMS_10_5_MAIN",
+            "section": "IMS_10_1",
+            "branch": "IMS_10_1_MAIN",
             "raw_values": {"ASABUILD": "217", "FXOS_BUILD": "295", ...},
             "display": {"ASA": "99.25.0.217", "FXOS": "82.19.0.295"},
-            "last_updated": {"product/ASABUILD": "2025-05-20", ...},
+            "last_updated": {"product/ASABUILD": "2026/05/20", ...},
             "error": None
         }
     """
-    client = github_client or GitHubAPI()
-    repo = config[section]["repo"]
+    depot_base = config[section].get("depot_base", "")
+    p4_port = config[section].get("p4_port", None)
     branch = config[section]["branch"]
     files = [f.strip() for f in config[section]["files"].split(",")]
     keys = [k.strip() for k in config[section]["keys"].split(",")]
@@ -84,7 +89,7 @@ def fetch_pointer_values(config, section, github_client=None):
 
     result = {
         "section": section,
-        "repo": repo,
+        "repo": "",
         "branch": branch,
         "raw_values": {},
         "display": {},
@@ -95,15 +100,16 @@ def fetch_pointer_values(config, section, github_client=None):
     try:
         all_values = {}
         for file_path in files:
-            content = client.get_file_content(repo, file_path, branch)
+            depot_path = build_depot_path(depot_base, branch, file_path)
+            content = p4_print(depot_path, p4_port)
             parsed = parse_pointer_file(content)
             all_values.update(parsed)
 
-            # Get last commit date for this file
+            # Get last changelist date
             try:
-                commits = client.get_file_commits(repo, file_path, branch, limit=1)
-                if commits:
-                    result["last_updated"][file_path] = commits[0]["date"]
+                entries = p4_filelog(depot_path, p4_port, limit=1)
+                if entries:
+                    result["last_updated"][file_path] = entries[0]["date"]
             except Exception:
                 result["last_updated"][file_path] = "N/A"
 
@@ -120,27 +126,27 @@ def fetch_pointer_values(config, section, github_client=None):
     return result
 
 
-def fetch_pointer_history(config, section, github_client=None, limit=5):
-    """Fetch recent commit history for pointer files in a section.
-
-    Returns a list of dicts per file:
-        [
-            {
-                "file": "product/ASABUILD",
-                "commits": [{"sha": "abc12345", "date": "...", "message": "...", "author": "..."}]
-            },
-            ...
-        ]
-    """
-    client = github_client or GitHubAPI()
-    repo = config[section]["repo"]
+def fetch_pointer_history(config, section, limit=5):
+    """Fetch recent changelist history for pointer files from Perforce."""
+    depot_base = config[section].get("depot_base", "")
+    p4_port = config[section].get("p4_port", None)
     branch = config[section]["branch"]
     files = [f.strip() for f in config[section]["files"].split(",")]
 
     history = []
     for file_path in files:
         try:
-            commits = client.get_file_commits(repo, file_path, branch, limit=limit)
+            depot_path = build_depot_path(depot_base, branch, file_path)
+            entries = p4_filelog(depot_path, p4_port, limit=limit)
+            commits = [
+                {
+                    "sha": e.get("change", ""),
+                    "date": e.get("date", ""),
+                    "message": e.get("description", ""),
+                    "author": e.get("user", ""),
+                }
+                for e in entries
+            ]
             history.append({"file": file_path, "commits": commits})
         except Exception as exc:
             history.append({"file": file_path, "error": str(exc)})
@@ -149,12 +155,8 @@ def fetch_pointer_history(config, section, github_client=None, limit=5):
 
 
 def resolve_pointer_sections(query, config):
-    """Resolve a user query to matching pointer config sections.
-
-    Returns a list of matching section names.
-    """
+    """Resolve a user query to matching pointer config sections."""
     if not query:
-        # Return all non-special sections
         return [s for s in config.sections() if s != "COMPARE_GROUPS"]
 
     query_lower = query.lower()
@@ -179,69 +181,54 @@ def resolve_pointer_sections(query, config):
 
 
 def resolve_compare_group(query, config):
-    """Resolve a compare query to a pair of sections.
-
-    Checks group names and alias_<group> entries for matching.
-    Returns a list of two section names or empty list.
-    """
+    """Resolve a user query to a compare group's sections."""
     if "COMPARE_GROUPS" not in config:
         return []
 
-    compare_groups = config["COMPARE_GROUPS"]
-    query_lower = (query or "").lower().replace(" ", "_").strip()
+    groups = config["COMPARE_GROUPS"]
+    query_lower = (query or "").strip().lower()
 
-    # Build map of group_name -> sections, collecting aliases
-    for key in compare_groups:
+    for key in groups:
         if key.startswith("alias_"):
             continue
+
         group_name = key
-        sections = [s.strip() for s in compare_groups[group_name].split(",")]
-
-        # Check group name match
-        if query_lower == group_name or query_lower in group_name:
-            return sections
-
-        # Check aliases for this group
+        sections_str = groups[key]
         alias_key = f"alias_{group_name}"
-        if alias_key in compare_groups:
-            aliases = [a.strip().lower() for a in compare_groups[alias_key].split(",")]
-            if query_lower in aliases:
-                return sections
+        aliases = []
+        if alias_key in groups:
+            aliases = [a.strip().lower() for a in groups[alias_key].split(",") if a.strip()]
 
-    # Default: return first compare group if query is empty
+        if query_lower == group_name.lower() or query_lower in aliases:
+            section_names = [s.strip() for s in sections_str.split(",") if s.strip()]
+            return section_names
+
+    # Default: return first non-alias group if no query
     if not query_lower:
-        for key in compare_groups:
+        for key in groups:
             if not key.startswith("alias_"):
-                return [s.strip() for s in compare_groups[key].split(",")]
+                section_names = [s.strip() for s in groups[key].split(",") if s.strip()]
+                return section_names
 
     return []
 
 
-def fetch_jenkins_build_data(config, section, github_client=None):
-    """Fetch Jenkins build data for a pointer config section.
+def fetch_jenkins_build_data(config, section):
+    """Fetch Jenkins build data for a Perforce-based pointer config section.
 
     Flow:
-    1. Read product/BUILD from GitHub to get the current build number
-    2. Find matching Jenkins build (by display name or last successful)
-    3. Fetch Component Version Report from that build
+    1. Read product/BUILD from Perforce to get the current build number
+    2. Find matching Jenkins build
+    3. Fetch Component Version Report
     4. Extract ASA and FXOS values from the report
-
-    Returns:
-        {
-            "build_number": "1495",
-            "jenkins_build": 509,
-            "job_status": "SUCCESS",
-            "report_title": "IMS 10.5.0.0-1495",
-            "report_display": {"ASA": "99.25.0.216", "FXOS": "82.19.0.293"},
-            "error": None
-        }
     """
-    client = github_client or GitHubAPI()
     jenkins_url = config[section].get("jenkins_url", "")
     jenkins_instance = config[section].get("jenkins_instance", "")
     report_path = config[section].get("report_path", "Component_20Version_20Report/")
     build_file = config[section].get("build_file", "")
     display_spec = config[section].get("display", "")
+    depot_base = config[section].get("depot_base", "")
+    p4_port = config[section].get("p4_port", None)
 
     result = {
         "build_number": "N/A",
@@ -256,12 +243,12 @@ def fetch_jenkins_build_data(config, section, github_client=None):
         result["error"] = "Jenkins not configured for this section"
         return result
 
-    # 1. Read product/BUILD from GitHub
+    # 1. Read product/BUILD from Perforce
     if build_file:
         try:
-            repo = config[section]["repo"]
             branch = config[section]["branch"]
-            content = client.get_file_content(repo, build_file, branch)
+            depot_path = build_depot_path(depot_base, branch, build_file)
+            content = p4_print(depot_path, p4_port)
             result["build_number"] = content.strip()
         except Exception as exc:
             result["error"] = f"Failed to read {build_file}: {exc}"
@@ -295,7 +282,7 @@ def fetch_jenkins_build_data(config, section, github_client=None):
 
     result["report_title"] = report.get("_title", "")
 
-    # 5. Extract ASA and FXOS values from report and build display values
+    # 5. Extract values from report and build display values
     report_values = {}
     for component_name, component_data in report.items():
         if component_name.startswith("_"):
@@ -309,10 +296,7 @@ def fetch_jenkins_build_data(config, section, github_client=None):
 
 
 def compare_pointer_vs_jenkins(pointer_result, jenkins_result):
-    """Compare pointer display values with Jenkins report display values.
-
-    Returns a dict: {"ASA": "MATCH", "FXOS": "MISMATCH"}
-    """
+    """Compare pointer display values with Jenkins report display values."""
     ptr_display = pointer_result.get("display", {})
     job_display = jenkins_result.get("report_display", {})
     comparison = {}

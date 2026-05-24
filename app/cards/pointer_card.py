@@ -1,8 +1,14 @@
 def _format_date(iso_date):
-    """Convert ISO date to readable format: 2025-05-20T10:30:00Z -> 2025-05-20 10:30"""
+    """Convert ISO or P4 date to readable format.
+
+    Handles: 2025-05-20T10:30:00Z -> 2025-05-20 10:30
+             2025/05/20            -> 2025-05-20
+    """
     if not iso_date or iso_date == "N/A":
         return "N/A"
-    return iso_date.replace("T", " ").replace("Z", "")[:16]
+    # P4 dates use slashes
+    date_str = iso_date.replace("/", "-").replace("T", " ").replace("Z", "")
+    return date_str[:16]
 
 
 def _build_diff(left_val, right_val, left_name):
@@ -38,24 +44,24 @@ def _latest_update(last_updated_dict):
 
 
 def _days_ago(left_date, right_date):
-    """Show how long since the most recent update (from today)."""
+    """Show how long since the left (IMS) branch was updated."""
     from datetime import datetime, timezone
 
-    latest = None
-    for date_str in [left_date, right_date]:
-        if not date_str or date_str == "N/A":
-            continue
-        try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
-            if latest is None or dt > latest:
-                latest = dt
-        except ValueError:
-            continue
-
-    if latest is None:
+    date_str = left_date
+    if not date_str or date_str == "N/A":
         return ""
 
-    days = (datetime.now(timezone.utc).date() - latest.date()).days
+    # Normalize P4 slashes
+    normalized = date_str.replace("/", "-")
+    try:
+        if " " in normalized and len(normalized) >= 16:
+            dt = datetime.strptime(normalized[:16], "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+        else:
+            dt = datetime.strptime(normalized[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return ""
+
+    days = (datetime.now(timezone.utc).date() - dt.date()).days
     if days == 0:
         return "updated today"
     elif days == 1:
@@ -94,7 +100,7 @@ def build_pointer_card(result):
     return "\n".join(lines)
 
 
-def build_pointer_compare_card(results, jenkins_results=None):
+def build_pointer_compare_card(results, jenkins_results=None, source="github"):
     """Build an enhanced comparison table with pointer + Jenkins data.
 
     Format:
@@ -171,15 +177,18 @@ def build_pointer_compare_card(results, jenkins_results=None):
 
         jlv = jk_left_vals.get(label, "N/A")
         jrv = jk_right_vals.get(label, "N/A")
-        jdiff = _build_diff(jlv, jrv, left_branch) if jlv != "N/A" else ""
-        rows.append((f"{label}(Builds)", jlv, jrv, jdiff))
 
-        # Sync status right after component
-        lm = jk_left_match.get(label, "N/A")
-        rm = jk_right_match.get(label, "N/A")
-        l_sync = "IN SYNC" if lm == "MATCH" else f"OUT OF SYNC({lv}->{jlv})" if lm != "N/A" else "N/A"
-        r_sync = "IN SYNC" if rm == "MATCH" else f"OUT OF SYNC({rv}->{jrv})" if rm != "N/A" else "N/A"
-        rows.append((f"{label} Sync", l_sync, r_sync, ""))
+        # Only show Builds/Sync rows for GitHub sources with Jenkins data
+        if source != "p4" and (jlv != "N/A" or jrv != "N/A"):
+            jdiff = _build_diff(jlv, jrv, left_branch) if jlv != "N/A" else ""
+            rows.append((f"{label}(Builds)", jlv, jrv, jdiff))
+
+            # Sync status right after component
+            lm = jk_left_match.get(label, "N/A")
+            rm = jk_right_match.get(label, "N/A")
+            l_sync = "IN SYNC" if lm == "MATCH" else f"OUT OF SYNC({lv}->{jlv})" if lm != "N/A" else "N/A"
+            r_sync = "IN SYNC" if rm == "MATCH" else f"OUT OF SYNC({rv}->{jrv})" if rm != "N/A" else "N/A"
+            rows.append((f"{label} Sync", l_sync, r_sync, ""))
 
         # Per-component pointer update time
         fpath = label_file_map.get(label)
@@ -191,27 +200,28 @@ def build_pointer_compare_card(results, jenkins_results=None):
 
         rows.append(("", "", "", ""))
 
-    # Jenkins job details
-    lb = jk_left.get("build_number", "N/A")
-    rb = jk_right.get("build_number", "N/A")
-    rows.append(("IMS", lb, rb, ""))
+    # Jenkins job details — skip for P4 sources
+    if source != "p4":
+        lb = jk_left.get("build_number", "N/A")
+        rb = jk_right.get("build_number", "N/A")
+        rows.append(("IMS", lb, rb, ""))
 
-    lt = jk_left.get("build_description", "")
-    rt = jk_right.get("build_description", "")
-    if lt or rt:
-        rows.append(("Tag", lt, rt, ""))
+        lt = jk_left.get("build_description", "")
+        rt = jk_right.get("build_description", "")
+        if lt or rt:
+            rows.append(("Tag", lt, rt, ""))
 
-    ls = jk_left.get("job_status", "N/A")
-    rs = jk_right.get("job_status", "N/A")
-    rows.append(("Job Status", ls, rs, ""))
+        ls = jk_left.get("job_status", "N/A")
+        rs = jk_right.get("job_status", "N/A")
+        rows.append(("Job Status", ls, rs, ""))
 
-    rows.append(("", "", "", ""))
+        rows.append(("", "", "", ""))
 
-    # Jenkins errors (if any)
-    if jk_left.get("error"):
-        rows.append(("JK Error", jk_left["error"][:col_w], "", ""))
-    if jk_right.get("error"):
-        rows.append(("JK Error", "", jk_right["error"][:col_w], ""))
+        # Jenkins errors (if any)
+        if jk_left.get("error"):
+            rows.append(("JK Error", jk_left["error"][:col_w], "", ""))
+        if jk_right.get("error"):
+            rows.append(("JK Error", "", jk_right["error"][:col_w], ""))
 
 
     # Build preformatted table

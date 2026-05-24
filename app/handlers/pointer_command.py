@@ -1,16 +1,25 @@
 from webex_bot.models.command import Command
 from webexteamssdk import WebexTeamsAPI
 from app.core.settings import get_webex_settings
-from app.core.paths import POINTER_CONFIG_PATH
+from app.core.paths import POINTER_CONFIG_PATH, P4_POINTER_CONFIG_PATH
 from app.clients.github_api import GitHubAPI
 from app.services.github.pointer_service import (
-    load_pointer_config,
-    fetch_pointer_values,
-    fetch_pointer_history,
-    fetch_jenkins_build_data,
-    compare_pointer_vs_jenkins,
-    resolve_pointer_sections,
-    resolve_compare_group,
+    load_pointer_config as gh_load_config,
+    fetch_pointer_values as gh_fetch_values,
+    fetch_pointer_history as gh_fetch_history,
+    fetch_jenkins_build_data as gh_fetch_jenkins,
+    compare_pointer_vs_jenkins as gh_compare,
+    resolve_pointer_sections as gh_resolve_sections,
+    resolve_compare_group as gh_resolve_compare,
+)
+from app.services.perforce.pointer_service import (
+    load_pointer_config as p4_load_config,
+    fetch_pointer_values as p4_fetch_values,
+    fetch_pointer_history as p4_fetch_history,
+    fetch_jenkins_build_data as p4_fetch_jenkins,
+    compare_pointer_vs_jenkins as p4_compare,
+    resolve_pointer_sections as p4_resolve_sections,
+    resolve_compare_group as p4_resolve_compare,
 )
 from app.cards.pointer_card import (
     build_pointer_card,
@@ -43,6 +52,39 @@ class PointerCommand(Command):
         )
         self.match_substring = True
 
+    def _detect_source(self, text):
+        """Detect which source (github/perforce) to use based on the query.
+
+        Returns (source, config, query) tuple.
+        - Tries P4 config first for compare group or section match.
+        - Falls back to GitHub config.
+        """
+        gh_config = gh_load_config(POINTER_CONFIG_PATH)
+        p4_config = p4_load_config(P4_POINTER_CONFIG_PATH)
+
+        # Check P4 compare groups
+        p4_compare = p4_resolve_compare(text, p4_config)
+        if p4_compare and len(p4_compare) >= 2:
+            return "p4", p4_config, text
+
+        # Check P4 sections
+        p4_sections = p4_resolve_sections(text, p4_config)
+        if p4_sections:
+            return "p4", p4_config, text
+
+        # Check GitHub compare groups
+        gh_compare_result = gh_resolve_compare(text, gh_config)
+        if gh_compare_result and len(gh_compare_result) >= 2:
+            return "github", gh_config, text
+
+        # Check GitHub sections
+        gh_sections = gh_resolve_sections(text, gh_config)
+        if gh_sections:
+            return "github", gh_config, text
+
+        # Default to GitHub
+        return "github", gh_config, text
+
     def execute(self, message, teams_message, activity):
         if activity and activity.get("personId") == WEBEX_BOT_PERSON_ID:
             return
@@ -51,49 +93,60 @@ class PointerCommand(Command):
         raw = (message or "").strip()
         text = raw.lower().replace("pointers", "").replace("pointer", "").replace("datadigger", "").replace("bot", "").strip()
 
-        config = load_pointer_config(POINTER_CONFIG_PATH)
-
-        if not github_client.is_configured():
-            api.messages.create(
-                roomId=room_id,
-                markdown="❌ GitHub is not configured. Set `GITHUB_TOKEN` environment variable.",
-            )
-            return
-
         # Handle "pointer compare [group]"
         if text.startswith("compare"):
             compare_query = text.replace("compare", "").strip()
-            self._handle_compare(room_id, config, compare_query)
+            source, config, _ = self._detect_source(compare_query)
+            self._handle_compare(room_id, config, compare_query, source)
             return
 
         # Handle "pointer history [section]"
         if text.startswith("history"):
             history_query = text.replace("history", "").strip()
-            self._handle_history(room_id, config, history_query)
+            source, config, _ = self._detect_source(history_query)
+            self._handle_history(room_id, config, history_query, source)
             return
 
-        # Try compare group alias (e.g. "10.5" triggers compare)
-        compare_sections = resolve_compare_group(text, config)
+        # Detect source and try compare group alias or section
+        source, config, _ = self._detect_source(text)
+
+        # Try compare group alias (e.g. "10.5" or "10.1" triggers compare)
+        if source == "p4":
+            compare_sections = p4_resolve_compare(text, config)
+        else:
+            compare_sections = gh_resolve_compare(text, config)
         if compare_sections and len(compare_sections) >= 2:
-            self._handle_compare(room_id, config, text)
+            self._handle_compare(room_id, config, text, source)
             return
 
         # Handle "pointer [section/alias]" or just "pointer"
-        sections = resolve_pointer_sections(text, config)
+        if source == "p4":
+            sections = p4_resolve_sections(text, config)
+        else:
+            sections = gh_resolve_sections(text, config)
 
         if not sections:
-            help_text = self._build_help(config, text)
+            gh_config = gh_load_config(POINTER_CONFIG_PATH)
+            p4_config = p4_load_config(P4_POINTER_CONFIG_PATH)
+            help_text = self._build_help(gh_config, p4_config, text)
             api.messages.create(roomId=room_id, markdown=help_text)
             return
 
         for section in sections:
-            result = fetch_pointer_values(config, section, github_client)
+            if source == "p4":
+                result = p4_fetch_values(config, section)
+            else:
+                result = gh_fetch_values(config, section, github_client)
             card = build_pointer_card(result)
             api.messages.create(roomId=room_id, markdown=card)
             time.sleep(1)
 
-    def _handle_compare(self, room_id, config, query):
-        sections = resolve_compare_group(query, config)
+    def _handle_compare(self, room_id, config, query, source="github"):
+        if source == "p4":
+            sections = p4_resolve_compare(query, config)
+        else:
+            sections = gh_resolve_compare(query, config)
+
         if len(sections) < 2:
             api.messages.create(
                 roomId=room_id,
@@ -104,15 +157,18 @@ class PointerCommand(Command):
         results = []
         jenkins_results = []
         for section in sections[:2]:
-            ptr = fetch_pointer_values(config, section, github_client)
+            if source == "p4":
+                ptr = p4_fetch_values(config, section)
+                jk = p4_fetch_jenkins(config, section)
+                jk["ptr_vs_job"] = p4_compare(ptr, jk)
+            else:
+                ptr = gh_fetch_values(config, section, github_client)
+                jk = gh_fetch_jenkins(config, section, github_client)
+                jk["ptr_vs_job"] = gh_compare(ptr, jk)
             results.append(ptr)
-            # Fetch Jenkins build data
-            jk = fetch_jenkins_build_data(config, section, github_client)
-            # Compare pointer vs Jenkins
-            jk["ptr_vs_job"] = compare_pointer_vs_jenkins(ptr, jk)
             jenkins_results.append(jk)
 
-        card = build_pointer_compare_card(results, jenkins_results)
+        card = build_pointer_compare_card(results, jenkins_results, source=source)
 
         # Check for stale pointers and tag notify list
         stale_msg = self._check_stale_pointers(config, sections[:2], results)
@@ -121,14 +177,20 @@ class PointerCommand(Command):
 
         api.messages.create(roomId=room_id, markdown=card)
 
-    def _handle_history(self, room_id, config, query):
-        sections = resolve_pointer_sections(query, config)
+    def _handle_history(self, room_id, config, query, source="github"):
+        if source == "p4":
+            sections = p4_resolve_sections(query, config)
+        else:
+            sections = gh_resolve_sections(query, config)
         if not sections:
             sections = [s for s in config.sections() if s != "COMPARE_GROUPS"]
 
         for section in sections:
             branch = config[section]["branch"]
-            history = fetch_pointer_history(config, section, github_client, limit=5)
+            if source == "p4":
+                history = p4_fetch_history(config, section, limit=5)
+            else:
+                history = gh_fetch_history(config, section, github_client, limit=5)
             card = build_pointer_history_card(section, branch, history)
             api.messages.create(roomId=room_id, markdown=card)
             time.sleep(1)
@@ -148,9 +210,12 @@ class PointerCommand(Command):
             if not dates:
                 continue
 
-            latest_str = max(dates)[:16].replace("T", " ").replace("Z", "")
+            latest_str = max(dates)[:16].replace("T", " ").replace("Z", "").replace("/", "-")
             try:
-                latest = datetime.strptime(latest_str, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+                if len(latest_str.strip()) <= 10:
+                    latest = datetime.strptime(latest_str.strip()[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                else:
+                    latest = datetime.strptime(latest_str, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
                 age = (now.date() - latest.date()).days
                 if age >= stale_days:
                     branch = config[section].get("branch", section)
@@ -170,19 +235,26 @@ class PointerCommand(Command):
         branches = ", ".join(stale_sections)
         return f"⚠️ **Stale Pointers**: {branches}\n{mentions} — pointers need attention!"
 
-    def _build_help(self, config, query):
+    def _build_help(self, gh_config, p4_config, query):
         rendered = query if query else "(empty)"
         lines = [f"❌ No pointer config found for `{rendered}`.\n"]
         lines.append("**Available pointer commands:**")
         lines.append("• `@bot pointer` - Show all branches")
         lines.append("• `@bot pointer compare` - Compare IMS vs LINA")
         lines.append("• `@bot pointer history` - Recent changes\n")
-        lines.append("**Configured branches:**")
-        for section in config.sections():
+        lines.append("**GitHub branches:**")
+        for section in gh_config.sections():
             if section == "COMPARE_GROUPS":
                 continue
-            aliases = config[section].get("alias", "")
-            branch = config[section].get("branch", "")
+            aliases = gh_config[section].get("alias", "")
+            branch = gh_config[section].get("branch", "")
+            lines.append(f"• `{section}` ({branch}) — aliases: `{aliases}`")
+        lines.append("\n**Perforce branches:**")
+        for section in p4_config.sections():
+            if section == "COMPARE_GROUPS":
+                continue
+            aliases = p4_config[section].get("alias", "")
+            branch = p4_config[section].get("branch", "")
             lines.append(f"• `{section}` ({branch}) — aliases: `{aliases}`")
         return "\n".join(lines)
 

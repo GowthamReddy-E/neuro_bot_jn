@@ -62,12 +62,25 @@ else
 fi
 
 echo "[3/3] Starting container: $CONTAINER_NAME"
+
+# P4 ticket file for Perforce access
+P4TICKETS_FILE="${P4TICKETS_FILE:-$HOME/.p4tickets}"
+
 docker_cmd=(
   docker run -d --name "$CONTAINER_NAME"
   --restart unless-stopped
   --user "$(id -u):$(id -g)"
   --env-file "$SECRETS_ENV_FILE"
+  -e "P4USER=${P4USER:-gowe}"
 )
+
+# Mount P4 tickets file if available
+if [[ -f "$P4TICKETS_FILE" ]]; then
+  echo "Mounting P4 tickets from $P4TICKETS_FILE"
+  docker_cmd+=(-v "$P4TICKETS_FILE:/app/.p4tickets:ro")
+else
+  echo "Warning: No P4 tickets file found at $P4TICKETS_FILE (Perforce commands may fail)"
+fi
 
 echo "Using image-bundled job/group config"
 echo "Injecting secrets via --env-file"
