@@ -210,16 +210,17 @@ class PointerCommand(Command):
             if not dates:
                 continue
 
-            latest_str = max(dates)[:16].replace("T", " ").replace("Z", "").replace("/", "-")
+            oldest_str = min(dates)[:16].replace("T", " ").replace("Z", "").replace("/", "-")
             try:
-                if len(latest_str.strip()) <= 10:
-                    latest = datetime.strptime(latest_str.strip()[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                if len(oldest_str.strip()) <= 10:
+                    oldest = datetime.strptime(oldest_str.strip()[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
                 else:
-                    latest = datetime.strptime(latest_str, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
-                age = (now.date() - latest.date()).days
+                    oldest = datetime.strptime(oldest_str, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+                age = (now.date() - oldest.date()).days
                 if age >= stale_days:
                     branch = config[section].get("branch", section)
-                    stale_sections.append(f"**{branch}** ({age} days old)")
+                    day_word = "day" if age == 1 else "days"
+                    stale_sections.append(f"**{branch}** ({age} {day_word} old)")
                     emails = config[section].get("notify", "")
                     for e in emails.split(","):
                         e = e.strip()

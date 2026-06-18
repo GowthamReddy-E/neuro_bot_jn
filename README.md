@@ -535,3 +535,9 @@ For issues and questions:
 ---
 
 **Note:** This bot requires network access to Jenkins instances and Webex Teams. Ensure firewall rules allow necessary connections.
+
+
+docker rm -f neuro-bot
+
+p4 -p ssl:sbg-perforce.esl.cisco.com:1666 -u gowe login
+p4 -p ssl:sbg-perforce.esl.cisco.com:1666 -u gowe login

@@ -11,7 +11,8 @@ DEFAULT_P4_PORT = "ssl:sbg-perforce.esl.cisco.com:1666"
 
 # Fixed file locations — use /tmp to avoid HOME permission issues in Docker
 P4_TRUST_FILE = "/tmp/.p4trust"
-P4_TICKETS_FILE = os.environ.get("P4TICKETS", "/app/.p4tickets")
+# Host ticket mounted at /app/.p4tickets (via start.sh), fallback to /tmp
+P4_TICKETS_FILE = "/app/.p4tickets" if os.path.exists("/app/.p4tickets") else "/tmp/.p4tickets"
 
 _trusted = {}
 
@@ -23,11 +24,6 @@ def _p4_env():
     env["P4TICKETS"] = P4_TICKETS_FILE
     if "P4USER" not in env:
         env["P4USER"] = os.environ.get("P4USER", "")
-    # P4PASSWD allows direct auth without p4 login
-    if "P4PASSWD" not in env:
-        p4_passwd = os.environ.get("P4PASSWD", "")
-        if p4_passwd:
-            env["P4PASSWD"] = p4_passwd
     return env
 
 
@@ -80,6 +76,9 @@ def p4_print(depot_path, p4_port=None):
         )
         if result.returncode != 0:
             error = result.stderr.strip() or f"p4 print failed with exit code {result.returncode}"
+            if "P4PASSWD" in error or "session expired" in error or "login" in error.lower():
+                logger.error("P4 ticket expired. Renew on host: p4 -p %s -u %s login",
+                             port, os.environ.get("P4USER", "gowe"))
             raise Exception(f"P4 error: {error}")
         return result.stdout
     except subprocess.TimeoutExpired:
